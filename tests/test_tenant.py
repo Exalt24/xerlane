@@ -16,7 +16,8 @@ from xerlane.schema import TABLES
 
 pytestmark = pytest.mark.db
 
-DATA_TABLES = [t.pg for t in TABLES] + ["load_run", "change_event", "quarantine", "aps_object", "aps_load_run", "aps_change_event", "aps_quarantine"]
+TENANT_TABLES = [t.pg for t in TABLES] + ["load_run", "change_event", "quarantine", "aps_object", "aps_load_run", "aps_change_event", "aps_quarantine", "cost_line", "commitment", "cost_load_run", "app_user", "app_session"]
+DATA_TABLES = TENANT_TABLES + ["login_attempt"]          # login_attempt has no tenant column: its one policy is the email being tried, checked below
 
 
 def owner_login(admin):
@@ -126,14 +127,18 @@ def test_every_table_with_tenant_id_has_row_security_enabled_and_forced(admin):
         from pg_class c join pg_namespace n on n.oid = c.relnamespace
         where n.nspname = 'xerlane' and c.relkind = 'r'
           and exists (select 1 from pg_attribute a where a.attrelid = c.oid and a.attname = 'tenant_id' and not a.attisdropped)""").fetchall()
-    assert {r[0] for r in rows} == set(DATA_TABLES)
+    assert {r[0] for r in rows} == set(TENANT_TABLES)
     assert all(r[1] and r[2] for r in rows), [r for r in rows if not (r[1] and r[2])]
+    attempt = admin.execute("select relrowsecurity, relforcerowsecurity from pg_class where relname = 'login_attempt' and relnamespace = 'xerlane'::regnamespace").fetchone()
+    assert attempt == (True, True)
 
 
 def test_every_table_has_a_policy_that_checks_reads_and_writes(admin):
     rows = admin.execute("select tablename, qual, with_check from pg_policies where schemaname = 'xerlane'").fetchall()
     assert {r[0] for r in rows} == set(DATA_TABLES)
-    assert all("app.tenant_id" in r[1] and "app.tenant_id" in r[2] for r in rows)
+    assert all("app.tenant_id" in r[1] and "app.tenant_id" in r[2] for r in rows if r[0] != "login_attempt")
+    attempt = [r for r in rows if r[0] == "login_attempt"][0]
+    assert "app.login_email" in attempt[1] and "app.login_email" in attempt[2]
 
 
 def test_table_owner_is_held_to_the_policy_too(two, admin):

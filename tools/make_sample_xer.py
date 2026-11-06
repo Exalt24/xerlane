@@ -79,7 +79,7 @@ class Clock:
         return self.start + timedelta(days=weeks * 7 + wd, hours=rem)
 
 
-def build_tables(seed: int, tasks: int = 300, projects: int = 1, id_base: int = 1000) -> list[Tbl]:
+def build_tables(seed: int, tasks: int = 300, projects: int = 1, id_base: int = 1000, progress_hours: float = 40.0) -> list[Tbl]:
     rng = random.Random(seed)
     cal = Tbl("CALENDAR", ["clndr_id", "clndr_name", "clndr_type", "day_hr_cnt", "week_hr_cnt", "default_flag"])
     for i, (nm, d, w) in enumerate([("Standard five day", 8, 40), ("Six day", 8, 48), ("Round the clock", 24, 168)]):
@@ -174,8 +174,8 @@ def build_tables(seed: int, tasks: int = 300, projects: int = 1, id_base: int = 
             ls[t] = hi - dur[t]
         proj.rows.append([str(pid), f"XL-{pi + 1:02d}", _ts(clock.at(0)), _ts(clock.at(finish)), _ts(datetime(2026, 11, 6, 6, 0)), cal_ids[0], f"p{pid}"])
         for i, t in enumerate(ids):
-            started = es[t] < 40 and rng.random() < 0.8
-            done = started and ef[t] < 24
+            started = es[t] < progress_hours and rng.random() < 0.8
+            done = started and ef[t] < progress_hours * 0.6
             status = "COMPLETED" if done else "IN_PROGRESS" if started else "NOT_STARTED"
             tf = ls[t] - es[t]
             fs_gaps = [es[s] - ef[t] - lag for s, ty, lag in succ.get(t, []) if ty == "PR_FS"]
@@ -193,7 +193,7 @@ def build_tables(seed: int, tasks: int = 300, projects: int = 1, id_base: int = 
                 for rid in rng.sample(sorted(rates), k=rng.choice([1, 1, 2])):
                     qty = Decimal(dur[t]) * Decimal(rng.choice([1, 1, 2]))
                     cost = qty * rates[rid]
-                    done_part = Decimal("0.5") if es[t] < 40 else Decimal(0)
+                    done_part = Decimal("0.5") if es[t] < progress_hours else Decimal(0)
                     asg.rows.append([str(next_asg), str(t), rid, str(pid), _money(cost), str(qty), _money(cost * (1 - done_part)), str(qty * (1 - done_part)),
                                      _money(cost * done_part), str(qty * done_part), "0.00", "0"])
                     next_asg += 1
@@ -293,8 +293,8 @@ def render(tables: list[Tbl], planted: list[Planted] | None = None, *, header_da
     return ("\r\n".join(lines) + "\r\n").encode("cp1252")
 
 
-def make(seed: int = 1, tasks: int = 300, projects: int = 1, defects: list[str] | None = None, id_base: int = 1000) -> tuple[bytes, list[Planted]]:
-    tables = build_tables(seed, tasks, projects, id_base)
+def make(seed: int = 1, tasks: int = 300, projects: int = 1, defects: list[str] | None = None, id_base: int = 1000, progress_hours: float = 40.0) -> tuple[bytes, list[Planted]]:
+    tables = build_tables(seed, tasks, projects, id_base, progress_hours)
     planted = plant(tables, list(defects or []), seed)
     data = render(tables, planted)
     for p in planted:
@@ -312,6 +312,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--tasks", type=int, default=300)
     ap.add_argument("--projects", type=int, default=1)
+    ap.add_argument("--progress-hours", type=float, default=40.0, help="working hours of the plan that have been worked at the data date (default 40: almost nothing started)")
     ap.add_argument("--defect", action="append", default=[], choices=sorted(DEFECTS))
     ap.add_argument("--out", default="out/sample.xer")
     ap.add_argument("--manifest", help="write the planted defects as JSON")
@@ -321,7 +322,7 @@ def main(argv: list[str] | None = None) -> int:
         for k, (text, expect, fatal) in DEFECTS.items():
             print(f"{k:22} {text}  -> {', '.join(expect)}{'  (file rejected)' if fatal else ''}")
         return 0
-    data, planted = make(a.seed, a.tasks, a.projects, a.defect)
+    data, planted = make(a.seed, a.tasks, a.projects, a.defect, progress_hours=a.progress_hours)
     out = Path(a.out)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_bytes(data)

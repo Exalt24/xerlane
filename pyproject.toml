@@ -21,4 +21,4 @@ xerlane = "xerlane.cli:main"
 packages = ["xerlane"]
 
 [tool.setuptools.package-data]
-xerlane = ["schema.sql", "aps_schema.sql"]
+xerlane = ["schema.sql", "aps_schema.sql", "cost_schema.sql", "web_schema.sql"]

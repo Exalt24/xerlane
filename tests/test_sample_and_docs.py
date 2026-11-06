@@ -123,11 +123,11 @@ def test_the_codes_the_parser_does_not_trust_are_all_named_in_not_confirmed():
 
 # ---- text rules for the whole repository -----------------------------------------------------------------------------------------------------------
 
-TEXT_SUFFIXES = {".py", ".md", ".txt", ".sql", ".yml", ".yaml", ".toml", ".ini", ".json", ".cfg"}
+TEXT_SUFFIXES = {".py", ".md", ".txt", ".sql", ".yml", ".yaml", ".toml", ".ini", ".json", ".cfg", ".ts", ".vue", ".css"}
 
 
 def _repo_text_files():
-    skip = {".venv", ".git", ".pytest_cache", ".hypothesis", "__pycache__", "out", ".mutation"}
+    skip = {".venv", ".git", ".pytest_cache", ".hypothesis", "__pycache__", "out", ".mutation", "node_modules", ".nuxt", ".output", ".nitro"}       # the last four are the web app's installed packages and build output
     for p in ROOT.rglob("*"):
         if p.is_file() and not (set(p.relative_to(ROOT).parts) & skip) and (p.suffix in TEXT_SUFFIXES or p.name in ("LICENSE", ".gitignore")):
             yield p

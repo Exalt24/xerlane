@@ -1,4 +1,4 @@
-"""Command line: python -m xerlane init-db | load | validate | reconcile | diff | aps.
+"""Command line: python -m xerlane init-db | load | validate | reconcile | diff | load-cost | reconcile-cost | report | add-user | aps.
 
 Exit codes: 0 clean; 1 the command ran and found something (quarantined rows, validation errors, a reconcile difference, a diff with changes); 2 the file was
 rejected, a project failed to load, or the command could not run (bad arguments, no database, unsafe role).
@@ -6,12 +6,16 @@ rejected, a project failed to load, or the command could not run (bad arguments,
 from __future__ import annotations
 
 import argparse
+import getpass
+import os
 import sys
 from pathlib import Path
 
 import psycopg
 
-from . import db
+from datetime import datetime
+
+from . import cost, db, evm, users
 from .load import LoadResult, diff_file, load_file, make_plan
 from .parse import parse_file
 from .reconcile import reconcile
@@ -140,6 +144,63 @@ def cmd_diff(args) -> int:
     return 1 if changed else 0
 
 
+def cmd_load_cost(args) -> int:
+    with db.connect(args.dsn) as conn:
+        r = cost.load_file(conn, args.tenant, args.kind, args.file, args.label, allow_empty=args.allow_empty)
+    print(f"file       {r.label}  {args.kind} export  sha256 {r.sha256[:16]}  {r.rows_read} rows")
+    if r.status == "rejected":
+        print(f"REJECTED   nothing was written: {r.reason}")
+        return r.exit_code
+    if r.status == "failed":
+        print(f"FAILED     rolled back, nothing was written: {r.reason}")
+        return r.exit_code
+    for pid, c in sorted(r.projects.items()):
+        print(f"project    {pid}  added {c['added']}  changed {c['changed']}  removed {c['removed']}")
+    if r.quarantined:
+        print(f"quarantine {len(r.quarantined)} row(s) set aside with their reason (select from the quarantine table):")
+        for q in r.quarantined[:SHOW]:
+            print(_clip(f"  line {q.line}: {q.code}: {q.reason}"))
+        if len(r.quarantined) > SHOW:
+            print(f"  ... and {len(r.quarantined) - SHOW} more")
+    print(f"result     {r.status.upper()}  stored {r.stored}  set aside {len(r.quarantined)}  in {r.seconds:.2f} s")
+    return r.exit_code
+
+
+def cmd_reconcile_cost(args) -> int:
+    with db.connect(args.dsn) as conn:
+        r = cost.reconcile_file(conn, args.tenant, args.kind, args.file, args.label)
+    print(f"file       {r.label}  {args.kind} export  {r.file_rows} rows, {r.stored} stored, {r.quarantined} set aside")
+    for name, total in r.sums.items():
+        print(f"sum        {name:10} {total:,}")
+    for f in r.findings[:SHOW]:
+        print(f"DIFFERENCE {f}")
+    if len(r.findings) > SHOW:
+        print(f"... and {len(r.findings) - SHOW} more")
+    print("result     " + ("RECONCILED: counts, sums and every stored row match the file" if r.ok else f"{len(r.findings)} DIFFERENCE(S) FOUND"))
+    return 0 if r.ok else 1
+
+
+def cmd_report(args) -> int:
+    as_of = datetime.fromisoformat(args.as_of) if args.as_of else None
+    with db.connect(args.dsn) as conn:
+        rep = evm.build_report(conn, args.tenant, args.proj_id, as_of)
+    body = {"text": evm.render_text, "csv": evm.render_csv, "html": evm.render_html}[args.format](rep)
+    if args.out:
+        Path(args.out).write_text(body, encoding="utf-8", newline="")
+        print(f"wrote {args.out} ({args.format}, {len(rep.tasks)} task(s))")
+    else:
+        print(body)
+    return 0
+
+
+def cmd_add_user(args) -> int:
+    password = os.environ.get("XERLANE_NEW_PASSWORD") or getpass.getpass("password: ")
+    with db.connect(args.dsn) as conn:
+        uid = users.add_user(conn, args.tenant, args.email, password, args.role)
+    print(f"user {uid} created: {args.email.strip().lower()} ({args.role}) for tenant {args.tenant}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(prog="xerlane", description="Parse, load, validate and reconcile Primavera XER schedules in PostgreSQL.")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -168,6 +229,31 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("diff", help="what loading the file would change in the stored project")
     common(p)
     p.set_defaults(fn=cmd_diff)
+    p = sub.add_parser("load-cost", help="load a cost or commitment export (CSV) into the tenant")
+    common(p)
+    p.add_argument("--kind", required=True, choices=sorted(cost.KINDS))
+    p.add_argument("--label", help="name recorded for the file (default: its file name)")
+    p.add_argument("--allow-empty", action="store_true", help="let a file with no accepted row for a stored project remove that project's rows")
+    p.set_defaults(fn=cmd_load_cost)
+    p = sub.add_parser("reconcile-cost", help="prove the stored cost or commitment rows equal the file")
+    common(p)
+    p.add_argument("--kind", required=True, choices=sorted(cost.KINDS))
+    p.add_argument("--label")
+    p.set_defaults(fn=cmd_reconcile_cost)
+    p = sub.add_parser("report", help="earned value report for one project (needs the schedule and a cost export)")
+    p.add_argument("--tenant", required=True)
+    p.add_argument("--proj-id", type=int, required=True)
+    p.add_argument("--as-of", help="date or date and time, ISO form (default: the project's last recalculation date)")
+    p.add_argument("--format", choices=("text", "csv", "html"), default="text")
+    p.add_argument("--out", help="write to a file instead of the terminal")
+    p.add_argument("--dsn")
+    p.set_defaults(fn=cmd_report)
+    p = sub.add_parser("add-user", help="create a web app user for a tenant (password from XERLANE_NEW_PASSWORD or a prompt)")
+    p.add_argument("--tenant", required=True)
+    p.add_argument("--email", required=True)
+    p.add_argument("--role", choices=users.ROLES, default="viewer")
+    p.add_argument("--dsn")
+    p.set_defaults(fn=cmd_add_user)
     return ap
 
 
@@ -179,7 +265,7 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
         return args.fn(args)
-    except (psycopg.Error, db.UnsafeRole, OSError, ValueError) as exc:
+    except (psycopg.Error, db.UnsafeRole, OSError, ValueError, evm.ReportError, users.UserError) as exc:
         print(f"xerlane: {type(exc).__name__}: {exc}".splitlines()[0], file=sys.stderr)
         return 2
 

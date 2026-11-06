@@ -210,7 +210,7 @@ def _write(cur, tenant: str, t: Table, d: TableDiff) -> None:
 
 def _sync_quarantine(cur, tenant: str, proj_id: int, label: str, sha: str, rows: list[QRow]) -> bool:
     """Make the stored quarantine for this project and file label equal to `rows`. Returns True when the set of quarantined rows (ignoring the file hash) changed."""
-    scope = "tenant_id = %s AND (proj_id = %s OR (proj_id IS NULL AND source_label = %s))"
+    scope = "tenant_id = %s AND source_label NOT LIKE 'cost:%%' AND (proj_id = %s OR (proj_id IS NULL AND source_label = %s))"      # cost.py keeps its own rows in this table under a 'cost:' label
     cur.execute(f"SELECT table_name, line_no, reason_code, reason, raw, source_sha256, source_label FROM quarantine WHERE {scope}", (tenant, proj_id, label))
     stored = cur.fetchall()
     have = sorted((r[0], r[1], r[2], r[3], tuple(r[4])) for r in stored)

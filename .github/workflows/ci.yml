@@ -45,3 +45,47 @@ jobs:
         run: python tools/wait_for_pg.py
       - name: Test
         run: python -m pytest -q
+
+  web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      XERLANE_ADMIN_PASSWORD: ci-admin-${{ github.run_id }}-${{ github.run_attempt }}
+      XERLANE_OWNER_PASSWORD: ci-owner-${{ github.run_id }}-${{ github.run_attempt }}
+      XERLANE_APP_PASSWORD: ci-app-${{ github.run_id }}-${{ github.run_attempt }}
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: ci-admin-${{ github.run_id }}-${{ github.run_attempt }}
+          POSTGRES_DB: xerlane
+        ports:
+          - 5435:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d xerlane"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.13"
+          cache: pip
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install
+        run: |
+          pip install -r requirements.txt
+          cd web && npm ci
+      - name: Wait until Postgres answers a query
+        run: python tools/wait_for_pg.py
+      - name: Build, type check and test the web app
+        working-directory: web
+        run: |
+          npm run build
+          npm run typecheck
+          npm test

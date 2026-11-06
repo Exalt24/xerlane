@@ -46,10 +46,12 @@ TARGETS = {
     "reconcile": (["tests/test_reconcile_unit.py", "tests/test_reconcile.py", "tests/test_tenant.py"], 300),
     "db": (["tests/test_db.py", "tests/test_tenant.py", "tests/test_load.py", "tests/test_cli.py"], 300),
     "cli": (["tests/test_cli.py"], 300),
+    "cost": (["tests/test_cost.py", "tests/test_cost_cli_and_property.py", "tests/test_evm.py"], 300),
+    "evm": (["tests/test_evm.py", "tests/test_cost_cli_and_property.py"], 300),
 }
-DB_MODULES = {"validate", "load", "reconcile", "db", "cli"}          # the other modules are covered by tests that never open a connection
-FILES = {"parse": "xerlane/parse.py", "validate": "xerlane/validate.py", "load": "xerlane/load.py", "reconcile": "xerlane/reconcile.py", "db": "xerlane/db.py", "cli": "xerlane/cli.py"}
-DEFAULT_MODULES = ("parse", "validate", "load", "reconcile", "db")           # cli.py is output formatting, covered by test_cli and test_cli_unit, and not mutated here
+DB_MODULES = {"validate", "load", "reconcile", "db", "cli", "cost", "evm"}          # the other modules are covered by tests that never open a connection
+FILES = {"parse": "xerlane/parse.py", "validate": "xerlane/validate.py", "load": "xerlane/load.py", "reconcile": "xerlane/reconcile.py", "db": "xerlane/db.py", "cli": "xerlane/cli.py", "cost": "xerlane/cost.py", "evm": "xerlane/evm.py"}
+DEFAULT_MODULES = ("parse", "validate", "load", "reconcile", "db", "cost", "evm")           # cli.py is output formatting, covered by test_cli and test_cli_unit, and not mutated here
 
 CMP_SWAP = {ast.Eq: ast.NotEq, ast.NotEq: ast.Eq, ast.Lt: ast.GtE, ast.LtE: ast.Gt, ast.Gt: ast.LtE, ast.GtE: ast.Lt, ast.Is: ast.IsNot, ast.IsNot: ast.Is, ast.In: ast.NotIn, ast.NotIn: ast.In}
 ARITH_SWAP = {ast.Add: ast.Sub, ast.Sub: ast.Add}
