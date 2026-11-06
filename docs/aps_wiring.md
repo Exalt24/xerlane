@@ -58,11 +58,11 @@ and add `| aps` to the usage line of the module docstring. The exit codes follow
 
 ## 5. README.md
 
-Under "What it does" add one short paragraph:
+The README is about 12,000 characters today, so add only this one paragraph under "What it does" (about 480 characters) and leave the detail in docs/aps.md:
 
-> **Autodesk Platform Services.** `python -m xerlane.aps sync` pulls a translated model's object properties through the Model Derivative API and loads them into the same schema: idempotent, a change log, a quarantine, row level security per tenant, and a join to the XER tasks by `task_code` with a reconcile report in both directions. It was written from the vendor documentation and tested against a stand-in server; it has not been run against a live Autodesk account. See [docs/aps.md](docs/aps.md).
+> **Autodesk Platform Services.** `python -m xerlane.aps sync` loads a translated model's object properties into the same schema, with a change log, a quarantine, row level security and a task code join to the XER tasks. Written from Autodesk's documentation and tested against a stand-in server, never run against a live account. See [docs/aps.md](docs/aps.md).
 
-Under "Tests" add the command `python -m pytest tests/test_aps_*.py` and `python tests/mutation_check_aps.py`. Keep the "never run against a live account" sentence wherever the connector is mentioned.
+Under "Tests" add one line, about 90 characters: `Connector: python -m pytest tests/test_aps_*.py; python tests/mutation_check_aps.py`. If the README is trimmed later, keep the "never run against a live account" sentence wherever the connector is mentioned.
 
 ## 6. CI (.github/workflows/ci.yml)
 

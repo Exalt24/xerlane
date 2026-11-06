@@ -16,7 +16,7 @@ from xerlane.schema import TABLES
 
 pytestmark = pytest.mark.db
 
-DATA_TABLES = [t.pg for t in TABLES] + ["load_run", "change_event", "quarantine"]
+DATA_TABLES = [t.pg for t in TABLES] + ["load_run", "change_event", "quarantine", "aps_object", "aps_load_run", "aps_change_event", "aps_quarantine"]
 
 
 def owner_login(admin):

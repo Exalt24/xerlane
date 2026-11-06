@@ -1,4 +1,4 @@
-"""Command line: python -m xerlane init-db | load | validate | reconcile | diff.
+"""Command line: python -m xerlane init-db | load | validate | reconcile | diff | aps.
 
 Exit codes: 0 clean; 1 the command ran and found something (quarantined rows, validation errors, a reconcile difference, a diff with changes); 2 the file was
 rejected, a project failed to load, or the command could not run (bad arguments, no database, unsafe role).
@@ -172,6 +172,10 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    argv = sys.argv[1:] if argv is None else argv
+    if argv and argv[0] == "aps":
+        from .aps import main as aps_main                 # the APS connector has its own sub commands and exit codes, see docs/aps.md
+        return aps_main(argv[1:])
     args = build_parser().parse_args(argv)
     try:
         return args.fn(args)

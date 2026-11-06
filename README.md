@@ -8,7 +8,7 @@ Load Primavera XER schedules into PostgreSQL per client, set aside the rows that
 
 *A real run on an invented schedule (transcript: [docs/demo-transcript.txt](docs/demo-transcript.txt)). Load, reconcile passing, three planted defects set aside with their reasons, then one cent of damage in the database found by reconcile.*
 
-**558 tests, 878 of 878 mutants killed, a 6 MB file of 65,686 rows loaded in 3.1 s** (measured 2026-11-06, numbers and commands below).
+**788 tests, 878 of 878 mutants killed on the XER side and 412 of 412 on the APS side, a 6 MB file of 65,686 rows loaded in 3.1 s** (measured 2026-11-06, numbers and commands below).
 
 ## What it is and why
 
@@ -40,6 +40,8 @@ flowchart LR
   DB --> R
   Q --> R
 ```
+
+**Autodesk Platform Services.** `python -m xerlane.aps sync` loads a translated model's object properties into the same schema, with a change log, a quarantine, row level security and a task code join to the XER tasks. Written from Autodesk's documentation and tested against a stand-in server, never run against a live account. See [docs/aps.md](docs/aps.md).
 
 ## Run it
 
@@ -86,8 +88,9 @@ All numbers are from my runs on 2026-11-06 (Windows 11, Python 3.13, PostgreSQL 
 
 | What | Result | How |
 |---|---|---|
-| Tests | 558 passing, 7 of them Hypothesis property tests (720 generated examples) | `python -m pytest` |
+| Tests | 788 passing: 558 for the XER side (7 of them Hypothesis property tests, 720 generated examples) and 230 for the APS connector | `python -m pytest` |
 | Mutants | 878 derived from the syntax tree of five modules, 878 killed, 0 survived | `python tests/mutation_check.py --module parse` (and validate, load, reconcile, db); per module totals in [docs/mutation-results.txt](docs/mutation-results.txt) |
+| Mutants, APS connector | 412 derived from the syntax tree of `xerlane/aps.py`, 412 killed, 0 survived; run by hand, not in CI | `python tests/mutation_check_aps.py` |
 | Load, 6.1 MB | 65,686 rows (20,000 tasks, 34,965 links, 10,677 assignments) in 3.1 s (three runs: 3.0, 3.1, 3.3); reloading the same file 1.6 s | `python tools/make_sample_xer.py --seed 11 --tasks 20000` then `load` |
 | Parse alone, same file | 0.7 s | `parse_file` |
 | Reconcile, same file | 0.4 s | `reconcile` |
@@ -105,9 +108,11 @@ All numbers are from my runs on 2026-11-06 (Windows 11, Python 3.13, PostgreSQL 
 
 ```
 python tools/pg.py up        # the tests need the container; a missing database fails them, it never skips them
-python -m pytest             # 558 tests, 228 s in a fresh clone
+python -m pytest             # 788 tests, TIME s in a fresh clone
 python tests/mutation_check.py --module parse    # one module at a time; --summary totals them
 ```
+
+Connector: `python -m pytest tests/test_aps_*.py; python tests/mutation_check_aps.py` (the mutation check is run by hand, not in CI).
 
 What they cover: the parser (every problem code, both line endings, encodings, typed values accepted and refused), the rules (hand built schedules and every planted defect kind, generated), the loader on a real PostgreSQL (idempotence, change report, rollback, quarantine, several projects), tenants, reconcile and its damage control, the command line as a real process, and the generator.
 
@@ -122,7 +127,7 @@ CI runs the same suite against a PostgreSQL 17 service container.
 - Everything xerlane has read was invented. `tools/make_sample_xer.py` writes the files from the layout and the Oracle table and column names; xerlane has not read a real Primavera export or any client's system, and it is not production software.
 - The file syntax (header line, `%T`, `%F`, `%R`, `%E`, tab delimited, cp1252, date shapes) is taken from two open source readers and a National Archives registry entry. Oracle's pages name the tables and columns but not the syntax. Column types are inferred from column names. [docs/NOT_CONFIRMED.md](docs/NOT_CONFIRMED.md) lists 15 things no loaded page settles and what the code does about each.
 - Seven tables are modeled. About 60 others in the data map are read, counted, reported as `UNMODELED_TABLE` and not loaded.
-- XER only. Cost and commitment exports and third party API data are not loaded.
+- The schedule loader reads XER only; cost and commitment exports are not loaded. The Autodesk connector reads object properties of a translated model and nothing else, and it has only talked to a stand-in server I wrote from Autodesk's documentation, never to Autodesk.
 - A relationship between two projects is quarantined by name, not loaded. A project is identified by (tenant, `proj_id`).
 - Dates are stored without a time zone, hours as plain numbers, nothing converted.
 - There is no web app and no login. The tenant id is whatever the caller passes to `--tenant`; row level security keeps tenants apart, deciding who may use which tenant id is outside this code.

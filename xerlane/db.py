@@ -23,7 +23,7 @@ OWNER_ROLE = "xerlane_owner"
 DEFAULT_PORT = 5435
 ENV_FILE = Path(__file__).resolve().parent.parent / ".env"
 INIT_LOCK = 74160001                    # no-mutate: any number does, it only has to be the same in every call (two init-db runs at once take turns on the schema and table creation)
-DATA_TABLES = ("quarantine", "change_event", "load_run", "taskrsrc", "taskpred", "task", "projwbs", "project", "rsrc", "calendar")
+DATA_TABLES = ("aps_quarantine", "aps_change_event", "aps_load_run", "aps_object", "quarantine", "change_event", "load_run", "taskrsrc", "taskpred", "task", "projwbs", "project", "rsrc", "calendar")
 
 
 class UnsafeRole(RuntimeError):
@@ -79,6 +79,7 @@ def init_db(admin_dsn: str, app_password: str | None = None, owner_password: str
     app_password = app_password or password("XERLANE_APP_PASSWORD")
     owner_password = owner_password or password("XERLANE_OWNER_PASSWORD")
     ddl = resources.files("xerlane").joinpath("schema.sql").read_text(encoding="utf-8")
+    aps_ddl = resources.files("xerlane").joinpath("aps_schema.sql").read_text(encoding="utf-8")
     sch, owner, app = sql.Identifier(schema), sql.Identifier(owner_role), sql.Identifier(app_role)
     with psycopg.connect(admin_dsn, autocommit=True) as conn:
         conn.execute("SELECT pg_advisory_lock(%s)", (INIT_LOCK,))          # released when this connection closes
@@ -94,6 +95,7 @@ def init_db(admin_dsn: str, app_password: str | None = None, owner_password: str
         conn.execute(sql.SQL("SET LOCAL ROLE {}").format(owner))
         conn.execute(sql.SQL("SET LOCAL search_path = {}").format(sch))
         conn.execute(ddl)
+        conn.execute(aps_ddl)
         conn.execute(sql.SQL("GRANT USAGE ON SCHEMA {} TO {}").format(sch, app))
         conn.execute(sql.SQL("GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA {} TO {}").format(sch, app))
         conn.execute(sql.SQL("GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA {} TO {}").format(sch, app))

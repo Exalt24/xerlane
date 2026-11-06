@@ -41,6 +41,7 @@ The `aps.autodesk.com` reference pages render their request and response section
 - 202 on the properties route: asked again after 1, 2, 4, ... seconds (capped at 15), at most 12 waits, then `ApsNotReady`. Polling does not use up the error retries.
 - 429: waits exactly `Retry-After` seconds. A missing or unreadable header falls back to the backoff below. A `Retry-After` over 120 seconds raises `ApsRateLimited` at once instead of hanging.
 - 5xx and network errors: retried after 0.5, 1, 2, ... seconds (capped at 10), at most 5 retries, then the error is raised with its status.
+- An answer that ends before its `Content-Length` bytes arrived is treated as a network error and retried, never parsed; a response over 256 MiB is refused.
 - Every other 4xx, including 403, is final and never retried. A redirect is never followed, so the bearer token cannot be sent to another host.
 - The `urn` and the view `guid` must be URL-safe characters before they are put in a path. `urn_from_object_id` builds the URL-safe Base64 form Model Derivative expects.
 - No token, secret or Basic header is logged or placed in an error message; text that echoes one back from a server error body is replaced with `***`. A test drives a busy run and searches every log line and exception for them.

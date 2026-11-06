@@ -29,7 +29,7 @@ def test_init_db_run_by_several_processes_at_once_does_not_fail(admin_dsn):
                 f.result()
         with psycopg.connect(dsn) as c:
             tables = {r[0] for r in c.execute("select tablename from pg_tables where schemaname = %s", (schema,)).fetchall()}
-        assert tables == {"calendar", "rsrc", "project", "projwbs", "task", "taskpred", "taskrsrc", "load_run", "change_event", "quarantine"}
+        assert tables == {"calendar", "rsrc", "project", "projwbs", "task", "taskpred", "taskrsrc", "load_run", "change_event", "quarantine", "aps_object", "aps_load_run", "aps_change_event", "aps_quarantine"}
     finally:
         with psycopg.connect(admin_dsn, autocommit=True) as c:
             c.execute(f'drop database if exists "{name}" with (force)')
