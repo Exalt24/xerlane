@@ -301,7 +301,7 @@ def test_two_loads_of_the_same_view_take_turns(aps_app_dsn, aps_clean, aadmin):
         end = time.monotonic() + 8
         waiting = 0
         while time.monotonic() < end and not waiting:
-            waiting = aadmin.execute("select count(*) from pg_locks where locktype = 'advisory' and not granted").fetchone()[0]
+            waiting = aadmin.execute("select count(*) from pg_locks where locktype = 'advisory' and not granted and database = (select oid from pg_database where datname = current_database())").fetchone()[0]
             time.sleep(0.05)
         assert waiting == 1, "the second load did not wait for the lock"
         assert t.is_alive() and "res" not in out
