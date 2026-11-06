@@ -96,13 +96,17 @@ class StandIn:
                 pass
 
             def _send(self, status: int, body: bytes, headers: dict[str, str] | None = None) -> None:
+                headers = dict(headers or {})
+                cut = headers.pop("X-Truncate", None)                # promise 50 more bytes than are sent, then hang up: a connection that died mid answer
                 self.send_response(status)
                 self.send_header("Content-Type", "application/json")
-                self.send_header("Content-Length", str(len(body)))
-                for k, v in (headers or {}).items():
+                self.send_header("Content-Length", str(len(body) + (50 if cut else 0)))
+                for k, v in headers.items():
                     self.send_header(k, v)
                 self.end_headers()
                 self.wfile.write(body)
+                if cut:
+                    self.close_connection = True
 
             def _json(self, status: int, doc: Any, headers: dict[str, str] | None = None) -> None:
                 self._send(status, json.dumps(doc).encode(), headers)

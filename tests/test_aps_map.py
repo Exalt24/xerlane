@@ -1,12 +1,14 @@
 """Mapping of an APS properties collection to rows and quarantine items. Pure functions: no database, no network."""
 from __future__ import annotations
 
+import dataclasses
 import json
 
 import pytest
 
 from aps_stand_in import GUID_3D, URN, obj, sample_collection
-from xerlane.aps import (MAX_PROPERTIES_BYTES, MAX_RAW_BYTES, MAX_TEXT_CHARS, content_hash, find_task_code, map_collection, payload_digest)
+from xerlane.aps import (MAX_PROPERTIES_BYTES, MAX_RAW_BYTES, MAX_TEXT_CHARS, ApsReconcileReport, ModelView, ObjectRef, ObjectRow, Reject, TaskRef, content_hash, find_task_code,
+                         map_collection, payload_digest)
 
 
 def run(collection, **kw):
@@ -188,3 +190,21 @@ def test_an_item_with_unstorable_text_is_kept_as_a_stub_with_no_text():
     raw = run([{"objectid": "4", "name": "a\x00b"}]).rejects[0].raw          # also bad for another reason first
     assert raw == {"unstorable": True}
     assert run(["a\x00b"]).rejects[0].raw == {"unstorable": True}
+
+
+# ---- value types ---------------------------------------------------------------------------------------------------------------------------------
+
+def test_value_types_are_immutable_so_they_can_be_shared_safely():
+    samples = [run([obj(1)]).rows[0], run([{"name": "x"}]).rejects[0], ModelView("n", "3d", "g", False), ObjectRef("u", "g", 1, None, None, None), TaskRef(1, 1, "A", None)]
+    for sample in samples:
+        with pytest.raises(dataclasses.FrozenInstanceError):
+            setattr(sample, dataclasses.fields(sample)[0].name, "changed")
+    assert isinstance(samples[0], ObjectRow) and isinstance(samples[1], Reject)
+
+
+@pytest.mark.parametrize("counts", [(1, 0, 0), (0, 1, 0), (0, 0, 1), (3, 2, 1)])
+def test_a_report_is_clean_only_when_all_three_mismatch_counts_are_zero(counts):
+    no_code, no_task, orphans = counts
+    rep = ApsReconcileReport(objects=5, matched_objects=5 - no_code - no_task, no_task_code=no_code, no_task=no_task, tasks=5, tasks_without_object=orphans)
+    assert not rep.clean
+    assert ApsReconcileReport(5, 5, 0, 0, 5, 0).clean

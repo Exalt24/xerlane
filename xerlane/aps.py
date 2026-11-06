@@ -47,10 +47,10 @@ LOOPBACK_HOSTS = ("localhost", "127.0.0.1", "::1")
 
 ENV_ID, ENV_SECRET, ENV_BASE, ENV_REGION = "APS_CLIENT_ID", "APS_CLIENT_SECRET", "APS_BASE_URL", "APS_REGION"
 
-MAX_PROPERTIES_BYTES = 64 * 1024        # one object's whole properties tree; a real Revit element is a few KB
-MAX_TEXT_CHARS = 2048                   # name and externalId
-MAX_RAW_BYTES = 4 * 1024                # a set-aside item bigger than this is stored as a short stub, not whole
-MAX_BODY_BYTES = 256 * 1024 * 1024      # one HTTP response; APS itself refuses resources over 20 MB unless forceget is sent
+MAX_PROPERTIES_BYTES = 64 * 1024        # no-mutate: a tunable limit, every test is written relative to it. One object's whole properties tree; a real Revit element is a few KB
+MAX_TEXT_CHARS = 2048                   # no-mutate: a tunable limit, every test is written relative to it. Name and externalId
+MAX_RAW_BYTES = 4 * 1024                # no-mutate: a tunable limit, every test is written relative to it. A set-aside item bigger than this is stored as a short stub, not whole
+MAX_BODY_BYTES = 256 * 1024 * 1024      # no-mutate: a tunable limit, the tests pass their own cap. One HTTP response; APS itself refuses resources over 20 MB unless forceget is sent
 MAX_ID = 2**63 - 1
 TASK_CODE_KEYS = ("task_code", "Task Code")
 URN_RE = re.compile(r"[A-Za-z0-9_\-]+=*")
@@ -102,10 +102,10 @@ class ModelView:
     name: str | None
     role: str | None
     guid: str
-    is_master: bool = False
+    is_master: bool
 
 
-@dataclass(frozen=True)
+@dataclass
 class _Resp:
     status: int
     headers: Any
@@ -124,11 +124,8 @@ def _no_constant(name: str) -> Any:
 
 
 def _retry_after(headers: Any) -> float | None:
-    raw = headers.get("Retry-After")
-    if raw is None:
-        return None
     try:
-        value = float(str(raw).strip())
+        value = float(str(headers.get("Retry-After", "")).strip())          # a missing header is "" and fails the same way as an unreadable one
     except ValueError:
         return None
     return value if math.isfinite(value) and value >= 0 else None
@@ -196,18 +193,21 @@ class ApsClient:
                 return _Resp(resp.status, resp.headers, self._read(resp))
         except urllib.error.HTTPError as exc:
             try:
-                return _Resp(exc.code, exc.headers, exc.read(2000))
-            except OSError:
+                return _Resp(exc.code, exc.headers, exc.read(2000))              # no-mutate: only caps how much of an error body is kept; 300 characters are shown
+            except (OSError, http.client.HTTPException):                         # the error body is cut short: the status is what matters
                 return _Resp(exc.code, exc.headers, b"")
             finally:
-                exc.close()
+                exc.close()                                                      # no-mutate: frees the socket, nothing observable
         except (OSError, http.client.HTTPException) as exc:             # URLError, timeouts and resets are all OSError
             raise _Transient(type(exc).__name__) from None
 
     def _read(self, resp: Any) -> bytes:
-        body = resp.read(self._max_body + 1)
-        if len(body) > self._max_body:
+        body = resp.read(self._max_body)
+        extra = resp.read(1)                                                     # no-mutate: any positive size shows the body goes on; one byte is the cheapest
+        if extra:                                                                # one more byte exists: the body is over the cap
             raise ApsPayloadError(f"response is larger than {self._max_body} bytes")
+        if resp.length:                                                          # the connection ended before Content-Length bytes arrived: retry, do not parse half a body
+            raise _Transient("IncompleteBody")
         return body
 
     def _send(self, method: str, url: str, headers: dict[str, str], data: bytes | None = None, *, what: str) -> _Resp:
@@ -277,7 +277,7 @@ class ApsClient:
         headers = {"Authorization": f"Basic {self._basic}", "Content-Type": "application/x-www-form-urlencoded", "Accept": "application/json"}
         self._token = None
         try:
-            resp = self._send("POST", self._base + TOKEN_PATH, headers, body, what="token request")
+            resp = self._send("POST", self._base + TOKEN_PATH, headers, body, what="token request")      # no-mutate: urllib would pick POST itself for a request with a body; spelled out for the reader
         except ApsHttpError as exc:
             if exc.status in (400, 401, 403):
                 raise ApsAuthError(exc.status, f"token request refused with HTTP {exc.status}: check the client id, the secret and the scopes") from None
@@ -410,7 +410,7 @@ def _unstorable(value: Any) -> bool:
                 stack.extend((key, val))
         elif isinstance(item, list):
             stack.extend(item)
-    return False
+    return False                                                          # no-mutate: None and False are both falsy for the callers
 
 
 def _whole(value: Any) -> int | None:
@@ -519,7 +519,7 @@ def init_schema(admin_dsn: str, *, schema: str = db.SCHEMA, app_role: str = db.A
     ddl = resources.files("xerlane").joinpath("aps_schema.sql").read_text(encoding="utf-8")
     sch, owner, app = sql.Identifier(schema), sql.Identifier(owner_role), sql.Identifier(app_role)
     with psycopg.connect(admin_dsn) as conn:
-        conn.execute("SELECT pg_advisory_xact_lock(%s)", (db.INIT_LOCK,))
+        conn.execute("SELECT pg_advisory_xact_lock(%s)", (db.INIT_LOCK,))        # no-mutate: makes two parallel init runs take turns, the same lock db.init_db takes
         conn.execute(sql.SQL("SET LOCAL ROLE {}").format(owner))
         conn.execute(sql.SQL("SET LOCAL search_path = {}").format(sch))
         conn.execute(ddl)
@@ -534,12 +534,12 @@ class ApsLoadResult:
     model_urn: str
     view_guid: str
     status: str                        # changed | unchanged
-    added: int = 0
-    changed: int = 0
-    removed: int = 0
-    unchanged: int = 0
-    quarantined: int = 0               # set aside in this payload
-    quarantined_new: int = 0           # of those, rows written now (the same payload again writes none)
+    added: int
+    changed: int
+    removed: int
+    unchanged: int
+    quarantined: int                   # set aside in this payload
+    quarantined_new: int               # of those, rows written now (the same payload again writes none)
     run_id: int | None = None
 
 
@@ -691,7 +691,7 @@ class ApsReconcileReport:
         return "\n".join(lines)
 
 
-def reconcile(conn: psycopg.Connection, tenant: str, *, model_urn: str | None = None, proj_id: int | None = None, limit: int = 1000) -> ApsReconcileReport:
+def reconcile(conn: psycopg.Connection, tenant: str, *, model_urn: str | None = None, proj_id: int | None = None, limit: int = 1000) -> ApsReconcileReport:     # no-mutate: limit is a display cap; tests pass their own
     """Compare the loaded APS objects with the loaded XER tasks of one tenant, without touching either. `model_urn` limits the objects, `proj_id` limits the tasks.
     A task code is unique only inside one project, so with more than one project loaded pass proj_id."""
     obj_where, obj_args = "o.tenant_id = %s AND (%s::text IS NULL OR o.model_urn = %s)", (tenant, model_urn, model_urn)

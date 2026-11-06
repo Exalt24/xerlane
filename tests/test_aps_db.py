@@ -521,10 +521,11 @@ def test_sync_can_be_limited_to_view_roles(model, aconn):
     assert model.count("GET", GUID_2D) == 0
 
 
-def test_a_view_that_never_gets_ready_fails_alone_and_the_others_load(model, aconn):
+def test_a_view_that_never_gets_ready_fails_alone_and_the_others_load(model, aconn, caplog):
     model.models[URN]["pending"][GUID_3D] = 99
     out = sync_model(make_client(model, max_polls=2), aconn, TENANT, URN)
     assert [o.status for o in out] == ["failed", "changed"]
+    assert f"view {GUID_3D} failed: " in caplog.text and "still not ready" in caplog.text
     assert "still not ready" in out[0].error and out[0].load is None
     assert q(aconn, TENANT, "select view_guid from aps_object") == [(GUID_2D,)]
 
@@ -566,8 +567,10 @@ def cli_env(monkeypatch, model, aps_app_dsn, aps_admin_dsn):
 
 
 def test_cli_init_schema_sync_and_reconcile(cli_env, aps_clean, aadmin, capsys):
+    aadmin.execute("drop view aps_object_task")
     assert aps.main(["init-schema"]) == 0
     assert "APS tables ready" in capsys.readouterr().out
+    assert aadmin.execute("select count(*) from pg_views where schemaname = 'xerlane' and viewname = 'aps_object_task'").fetchone()[0] == 1          # it really ran the DDL
     assert aps.main(["sync", "--tenant", TENANT, "--urn", URN]) == 0
     out = capsys.readouterr().out
     assert f"view {GUID_3D} (3d): changed, +4 ~0 -0, 0 unchanged, 0 set aside" in out and f"view {GUID_2D} (2d): changed, +1" in out
@@ -577,6 +580,38 @@ def test_cli_init_schema_sync_and_reconcile(cli_env, aps_clean, aadmin, capsys):
     assert "task without object: A1020" in capsys.readouterr().out
     assert aps.main(["sync", "--tenant", TENANT, "--urn", URN, "--roles", "3d, 2d"]) == 0
     assert "unchanged" in capsys.readouterr().out
+
+
+def test_cli_reconcile_exits_zero_when_everything_lines_up(cli_env, aps_clean, aadmin, capsys):
+    add_project(aadmin, TENANT, 1, ["A1000", "A1010", "NOPE-1", "X"])
+    assert aps.main(["sync", "--tenant", TENANT, "--urn", URN, "--roles", "3d"]) == 0
+    aadmin.execute("delete from aps_object where task_code is null")
+    aadmin.execute("delete from task where task_code = 'X'")
+    capsys.readouterr()
+    assert aps.main(["reconcile", "--tenant", TENANT]) == 0
+    assert "3 matched a task" in capsys.readouterr().out
+
+
+def test_cli_closes_its_database_connection(cli_env, aps_clean, aps_app_dsn, monkeypatch):
+    opened = []
+    real = db.connect
+
+    def spy(dsn=None):
+        c = real(dsn)
+        opened.append(c)
+        return c
+
+    monkeypatch.setattr(db, "connect", spy)
+    assert aps.main(["reconcile", "--tenant", TENANT]) == 0
+    assert aps.main(["sync", "--tenant", TENANT, "--urn", URN]) == 0
+    assert len(opened) == 2 and all(c.closed for c in opened)
+
+
+@pytest.mark.parametrize("argv", [[], ["sync", "--urn", URN], ["sync", "--tenant", TENANT], ["reconcile"], ["nonsense"]])
+def test_cli_refuses_missing_arguments(argv):
+    with pytest.raises(SystemExit) as exc:
+        aps.main(argv)
+    assert exc.value.code == 2
 
 
 def test_cli_exit_codes_for_a_failed_view_and_for_missing_credentials(cli_env, aps_clean, monkeypatch, capsys):

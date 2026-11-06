@@ -5,10 +5,13 @@ No network and no database. Waits are injected (FakeTime), so every retry delay 
 from __future__ import annotations
 
 import base64
+import http.client
 import json
 import logging
 import socket
 import threading
+import urllib.error
+import urllib.request
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 import pytest
@@ -101,12 +104,36 @@ def test_token_answer_that_is_not_json_is_a_payload_error(model):
         make_client(model).token()
 
 
-def test_other_token_endpoint_4xx_is_final_and_keeps_its_status(model):
-    model.script("token", j(404, {"developerMessage": "gone"}))
+@pytest.mark.parametrize("status", [400, 401, 403])
+def test_a_refused_token_request_is_an_auth_error_with_a_hint_and_no_retry(model, status):
+    model.script("token", j(status, {"developerMessage": "no"}))
+    ft = FakeTime()
+    with pytest.raises(ApsAuthError) as exc:
+        make_client(model, ft).token()
+    assert exc.value.status == status and f"HTTP {status}" in str(exc.value) and "check the client id" in str(exc.value)
+    assert ft.sleeps == [] and model.count("POST", "/token") == 1
+
+
+@pytest.mark.parametrize("status", [402, 404, 415])
+def test_other_token_endpoint_4xx_is_final_and_keeps_its_status(model, status):
+    model.script("token", j(status, {"developerMessage": "gone"}))
     ft = FakeTime()
     with pytest.raises(ApsHttpError) as exc:
         make_client(model, ft).token()
-    assert exc.value.status == 404 and not isinstance(exc.value, ApsAuthError) and ft.sleeps == []
+    assert exc.value.status == status and not isinstance(exc.value, ApsAuthError) and ft.sleeps == []
+
+
+def test_a_one_second_token_is_accepted_and_refreshed_after_half_a_second(model):
+    model.expires_in = 1
+    ft = FakeTime()
+    client = make_client(model, ft)
+    client.token()
+    ft.now += 0.4
+    client.token()
+    assert len(model.issued) == 1
+    ft.now += 0.2
+    client.token()
+    assert len(model.issued) == 2
 
 
 def test_token_endpoint_honours_429_and_5xx_too(model):
@@ -278,12 +305,20 @@ def test_429_without_a_usable_retry_after_falls_back_to_backoff(model):
     assert ft.sleeps == [0.5, 1.0, 2.0, 4.0, 8.0]
 
 
+def test_retry_after_zero_means_retry_at_once(model):
+    model.script("views", j(429, {}, **{"Retry-After": "0"}))
+    ft = FakeTime()
+    make_client(model, ft).list_views(URN)
+    assert ft.sleeps == [0.0]
+
+
 def test_a_retry_after_longer_than_we_will_wait_stops_at_once(model):
     model.script("views", j(429, {}, **{"Retry-After": "3600"}))
     ft = FakeTime()
     with pytest.raises(ApsRateLimited) as exc:
         make_client(model, ft).list_views(URN)
     assert exc.value.retry_after == 3600.0 and ft.sleeps == [] and model.count("GET", "/metadata") == 1
+    assert str(exc.value).startswith("GET /modelderivative/v2/designdata/") and "3600" in str(exc.value)
 
 
 def test_a_retry_after_exactly_at_the_limit_is_waited(model):
@@ -299,7 +334,7 @@ def test_429_forever_gives_up_after_max_retries(model):
     with pytest.raises(ApsRateLimited) as exc:
         make_client(model, ft, max_retries=3).list_views(URN)
     assert model.count("GET", "/metadata") == 4 and ft.sleeps == [1.0, 1.0, 1.0]
-    assert exc.value.retry_after == 1.0
+    assert exc.value.retry_after == 1.0 and "3 retries" in str(exc.value) and str(exc.value).startswith("GET ")
 
 
 def test_5xx_is_retried_with_growing_waits_then_succeeds(model):
@@ -320,14 +355,15 @@ def test_5xx_backoff_is_capped_and_the_retry_count_is_bounded(model):
     assert "5 retries" in str(exc.value)
 
 
-@pytest.mark.parametrize("status", [400, 404, 406, 409, 410, 413, 422])
-def test_other_4xx_are_never_retried(model, status):
+@pytest.mark.parametrize("status", [300, 304, 400, 404, 406, 409, 410, 413, 422])
+def test_every_other_non_2xx_answer_is_final_and_never_retried(model, status):
     model.script("views", j(status, {"diagnostics": "no"}))
     ft = FakeTime()
     with pytest.raises(ApsHttpError) as exc:
         make_client(model, ft).list_views(URN)
     assert exc.value.status == status and not isinstance(exc.value, ApsAuthError)
     assert ft.sleeps == [] and model.count("GET", "/metadata") == 1
+    assert str(exc.value).startswith("GET /modelderivative/v2/designdata/")
 
 
 def test_a_dropped_connection_is_retried_then_reported():
@@ -441,3 +477,91 @@ def test_no_secret_token_or_basic_header_in_any_log_line_or_error(model, caplog)
         assert needle not in blob, f"{needle[:12]}... leaked"
     assert "***" in str(exc.value)                                  # the echoed token and secret were replaced, not just dropped
     assert any("retry" in t for t in texts)
+
+
+# ---- defaults, size cap, truncated answers, proxies, logging ------------------------------------------------------------------------------------------
+
+def test_the_default_retry_and_poll_limits_are_five_retries_and_twelve_waits(model):
+    model.script("views", *[j(500, {})] * 20)
+    ft = FakeTime()
+    with pytest.raises(ApsHttpError):
+        make_client(model, ft).list_views(URN)
+    assert model.count("GET", "/metadata") == 6 and ft.sleeps == [0.5, 1.0, 2.0, 4.0, 8.0]
+    model.models[URN]["pending"][GUID_3D] = 99
+    ft = FakeTime()
+    with pytest.raises(ApsNotReady):
+        make_client(model, ft).get_properties(URN, GUID_3D)
+    assert model.count("GET", "/properties") == 13 and len(ft.sleeps) == 12 and ft.sleeps[-1] == 15.0
+
+
+def test_the_size_cap_is_exact(model):
+    body = b'{"data": {"collection": []}}'
+    model.models[URN]["raw"][GUID_3D] = body
+    client = make_client(model)
+    client.token()                                                      # the token answer is read under the cap too, so fetch it before the cap is set tight
+    client._max_body = len(body)
+    assert client.get_properties(URN, GUID_3D) == []
+    client._max_body = len(body) - 1
+    with pytest.raises(ApsPayloadError, match="larger than"):
+        client.get_properties(URN, GUID_3D)
+
+
+def test_an_answer_cut_off_before_its_content_length_is_retried_not_parsed(model):
+    model.script("views", (200, {"X-Truncate": "1"}, b'{"data": {"metadata": [{"gu'))
+    ft = FakeTime()
+    views = make_client(model, ft).list_views(URN)
+    assert [v.guid for v in views] == [GUID_3D, GUID_2D]
+    assert ft.sleeps == [0.5] and model.count("GET", "/metadata") == 2
+
+
+def test_an_error_body_that_dies_mid_read_still_reports_the_status(model):
+    class Body:
+        def read(self, n=-1):
+            raise http.client.IncompleteRead(b"par")
+
+        def close(self):
+            pass
+
+    err = urllib.error.HTTPError("http://x/", 400, "Bad Request", http.client.HTTPMessage(), Body())
+
+    class Opener:
+        def open(self, req, timeout=None):
+            raise err
+
+    client = make_client(model)
+    client._opener = Opener()
+    resp = client._once("GET", "http://x/", {}, None)
+    assert resp.status == 400 and resp.body == b""
+
+
+def test_system_proxy_settings_are_ignored_for_a_loopback_stand_in(model, monkeypatch):
+    for var in ("http_proxy", "HTTP_PROXY", "all_proxy", "ALL_PROXY"):
+        monkeypatch.setenv(var, "http://127.0.0.1:9")                    # a dead proxy: any request that goes through it fails
+    monkeypatch.delenv("no_proxy", raising=False)
+    monkeypatch.delenv("NO_PROXY", raising=False)
+    assert len(make_client(model, max_retries=0, timeout=3).list_views(URN)) == 2
+
+
+def test_a_real_host_keeps_the_system_proxy(monkeypatch):
+    monkeypatch.setenv("https_proxy", "http://proxy.example:3128")
+    client = ApsClient("id", "secret")
+    proxies = [h.proxies for h in client._opener.handlers if isinstance(h, urllib.request.ProxyHandler)]
+    assert proxies and proxies[0].get("https") == "http://proxy.example:3128"
+
+
+def test_base_url_is_stored_without_a_trailing_slash():
+    assert ApsClient("id", "secret", base_url="https://developer.api.autodesk.com/")._base == "https://developer.api.autodesk.com"
+    assert ApsClient("id", "secret", base_url="http://localhost:9/")._base == "http://localhost:9"
+
+
+def test_the_run_is_traceable_in_the_log(model, caplog):
+    caplog.set_level(logging.DEBUG, logger="xerlane.aps")
+    client = make_client(model)
+    client.list_views(URN)
+    model.expire_all_tokens()
+    model.models[URN]["pending"][GUID_3D] = 1
+    client.get_properties(URN, GUID_3D)
+    text = "\n".join(r.getMessage() for r in caplog.records)
+    for expected in ("access token acquired, valid for 3599 s", f"GET /modelderivative/v2/designdata/{URN}/metadata -> HTTP 200", "token refused with HTTP 401, fetching a new one",
+                     f"properties of view {GUID_3D} are still being extracted (HTTP 202), asking again in 1.0 s"):
+        assert expected in text, expected
