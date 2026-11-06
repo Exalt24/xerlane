@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "xerlane"
+version = "0.1.0"
+description = "Parse, load, validate and reconcile Primavera XER schedules in PostgreSQL."
+readme = "README.md"
+requires-python = ">=3.13"
+license = { text = "MIT" }
+dependencies = ["psycopg[binary]>=3.2"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "hypothesis>=6"]
+
+[project.scripts]
+xerlane = "xerlane.cli:main"
+
+[tool.setuptools]
+packages = ["xerlane"]
+
+[tool.setuptools.package-data]
+xerlane = ["schema.sql"]
