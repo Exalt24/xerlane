@@ -1,0 +1,68 @@
+$ python -m xerlane load out/plan.xer --tenant demo
+file       plan.xer  121,515 bytes  1350 rows  sha256 f0e957b1b1fc6b29
+checked    0 errors, 0 warnings, 1 notes
+  note: table CURRTYPE is not modeled; 1 rows read and not loaded
+project    XL-01 (1010)  LOADED  wbs 27 tasks 400 links 687 assigns 219  quarantined 0
+result     LOADED in 0.30 s
+$ python -m xerlane reconcile out/plan.xer --tenant demo
+file       out/plan.xer  sha256 f0e957b1b1fc6b29
+table       file rows   stored  quarantined  sampled  sums
+CALENDAR            3        3            0        3     2
+RSRC               12       12            0       12     0
+PROJECT             1        1            0        1     0
+PROJWBS            27       27            0       27     0
+TASK              400      400            0      300     4
+TASKPRED          687      687            0      300     1
+TASKRSRC          219      219            0      219     8
+note: CURRTYPE: 1 rows in the file, table not modeled, not loaded
+result     RECONCILED: counts, sums and sampled rows match the file
+
+$ python tools/make_sample_xer.py --seed 7 --tasks 400 --defect cycle --defect orphan_assignment --defect unknown_pred_type --out out/plan2.xer
+wrote out\plan2.xer (121,555 bytes, 1351 rows, 3 planted defect(s))
+  planted cycle: TASKPRED 41687 line 1147 -> expect CYCLE
+  planted orphan_assignment: TASKRSRC 81191 line 1341 -> expect ORPHAN_ASSIGNMENT
+  planted unknown_pred_type: TASKPRED 41081 line 541 -> expect UNKNOWN_PRED_TYPE
+$ python -m xerlane load out/plan2.xer --tenant demo
+file       plan2.xer  121,555 bytes  1351 rows  sha256 f3977421f0628957
+checked    3 errors, 0 warnings, 1 notes
+  [error] UNKNOWN_PRED_TYPE TASKPRED 41081 (line 541): pred_type 'PR_XX' is not one of PR_FS, P...
+  [error] ORPHAN_ASSIGNMENT TASKRSRC 81191 (line 1341): task_id 888888 is not a task of project...
+  [error] CYCLE TASKPRED 41687 (line 1147): dependency cycle: A1680 -> A1720 -> A1680
+  note: table CURRTYPE is not modeled; 1 rows read and not loaded
+project    XL-01 (1010)  UPDATED  wbs 27 tasks 400 links 686 assigns 218  quarantined 3
+quarantine 3 row(s) set aside with their reason (select from the quarantine table):
+  line 541 TASKPRED: UNKNOWN_PRED_TYPE: pred_type 'PR_XX' is not one of PR_FS, PR_SS, PR_FF, PR_SF
+  line 1147 TASKPRED: CYCLE: dependency cycle: A1680 -> A1720 -> A1680
+  line 1341 TASKRSRC: ORPHAN_ASSIGNMENT: task_id 888888 is not a task of project 1010
+result     LOADED in 0.10 s
+exit code 1
+$ python -m xerlane reconcile out/plan2.xer --tenant demo
+file       out/plan2.xer  sha256 f3977421f0628957
+table       file rows   stored  quarantined  sampled  sums
+CALENDAR            3        3            0        3     2
+RSRC               12       12            0       12     0
+PROJECT             1        1            0        1     0
+PROJWBS            27       27            0       27     0
+TASK              400      400            0      300     4
+TASKPRED          688      686            2      300     1
+TASKRSRC          219      218            1      218     8
+note: CURRTYPE: 1 rows in the file, table not modeled, not loaded
+result     RECONCILED: counts, sums and sampled rows match the file
+
+$ docker exec xerlane-pg psql -U postgres -d xerlane -c "update xerlane.taskrsrc set target_cost = target_cost + 0.01 where taskrsrc_id = 81000"
+UPDATE 1
+$ python -m xerlane reconcile out/plan2.xer --tenant demo
+file       out/plan2.xer  sha256 f3977421f0628957
+table       file rows   stored  quarantined  sampled  sums
+CALENDAR            3        3            0        3     2
+RSRC               12       12            0       12     0
+PROJECT             1        1            0        1     0
+PROJWBS            27       27            0       27     0
+TASK              400      400            0      300     4
+TASKPRED          688      686            2      300     1
+TASKRSRC          219      218            1      218     8
+note: CURRTYPE: 1 rows in the file, table not modeled, not loaded
+DIFFERENCE SUM TASKRSRC: target_cost: file adds up to 913059.04, database 911690.57 + quarantine 1368.48 = 913059.05
+DIFFERENCE ROW TASKRSRC: line 1150: taskrsrc_id 81000 column target_cost: file '4526.48', database 4526.49
+result     2 DIFFERENCE(S) FOUND
+exit code 1

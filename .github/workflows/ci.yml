@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  python-root:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      XERLANE_ADMIN_PASSWORD: ci-admin-${{ github.run_id }}-${{ github.run_attempt }}
+      XERLANE_OWNER_PASSWORD: ci-owner-${{ github.run_id }}-${{ github.run_attempt }}
+      XERLANE_APP_PASSWORD: ci-app-${{ github.run_id }}-${{ github.run_attempt }}
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: ci-admin-${{ github.run_id }}-${{ github.run_attempt }}
+          POSTGRES_DB: xerlane
+        ports:
+          - 5435:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d xerlane"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+          cache: pip
+      - name: Install
+        run: pip install -r requirements.txt
+      - name: Wait until Postgres answers a query
+        run: python tools/wait_for_pg.py
+      - name: Test
+        run: python -m pytest -q
