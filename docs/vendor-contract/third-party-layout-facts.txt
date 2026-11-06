@@ -1,0 +1,42 @@
+Facts about the physical XER layout, read 2026-11-06 from pages and source files I loaded. NONE of these is Oracle's. They are what two open-source readers and a national
+archive registry say. Short quotations only, as evidence; no third-party code is copied into xerlane (xer-reader is GPL-3.0, MPXJ is LGPL-2.1, xerlane is MIT).
+
+== A. PRONOM, UK National Archives, format fmt/1455 "Primavera P6 Project Management XER File"
+URL: https://pronom.nationalarchives.gov.uk/fmt/1455
+  Description: "An ASCII based file used to store project information with accompanying tables and fields."
+  Developed by: Oracle
+  Internal signature: "BOF: 'ERMHDR' EOF:0D0A"   (byte sequence 45524D484452 at offset 0; byte sequence 0D0A at the end of the file)
+
+== B. xer-reader 0.4.1 by jjCode01 (GPL-3.0), files xer_reader/src/reader.py, table.py, table_data.py on the main branch
+URLs: https://raw.githubusercontent.com/jjCode01/xer-reader/main/xer_reader/src/reader.py
+      https://raw.githubusercontent.com/jjCode01/xer-reader/main/xer_reader/src/table.py
+      https://raw.githubusercontent.com/jjCode01/xer-reader/main/xer_reader/src/table_data.py
+  reader.py:  CODEC = "cp1252"
+  reader.py:  if not file_contents.startswith("ERMHDR"): raise ValueError(... is invalid XER file)
+  reader.py:  ermhdr = re.search(r"(?<=ERMHDR\t).+", data); return ermhdr.group().split("\t")      (the header line is tab separated)
+  reader.py:  _file_info[0] = export_version, [1] = export date parsed with "%Y-%m-%d", [4] = export_user, [7] = currency
+  reader.py:  data.split("%T\t")   (a table starts with a line "%T<TAB><table name>")
+  table.py:   _lines = re.split(r"\r?\n", data); the first line is the table name; the second line holds the column labels: _lines.pop(0).strip().split("\t")[1:]   (a "%F<TAB>..." line)
+  table.py:   row.split("\t")[1:] for row in _lines if row.startswith("%R")   (a row is a "%R<TAB>..." line)
+  reader.py:  re.compile(rf"%T\t{name}\r?\n(.|\s)*?(?=%T|%E)")   (the file ends with a "%E" line)
+  table.py:   DATE_HR_FORMAT = "%Y-%m-%d %H:%M"; an empty string value is None
+  table.py:   a type is chosen by the column NAME suffix: *_date and *_date2 are dates; *_cost, *_hr, *_pct, *_qty, *_rate are floats; *_id, *_cnt, *_num are integers; *_flag is Y or N
+  table_data.py: key columns: CALENDAR clndr_id, PROJECT proj_id, PROJWBS wbs_id, RSRC rsrc_id, TASK task_id, TASKPRED task_pred_id, TASKRSRC taskrsrc_id
+
+== C. MPXJ (LGPL-2.1), org.mpxj.primavera package on the master branch
+URLs: https://raw.githubusercontent.com/joniles/mpxj/master/src/main/java/org/mpxj/primavera/XerFile.java
+      https://raw.githubusercontent.com/joniles/mpxj/master/src/main/java/org/mpxj/primavera/PrimaveraXERFileReader.java
+      https://raw.githubusercontent.com/joniles/mpxj/master/src/main/java/org/mpxj/primavera/RelationTypeHelper.java
+      https://raw.githubusercontent.com/joniles/mpxj/master/src/main/java/org/mpxj/primavera/NotesHelper.java
+  PrimaveraXERFileReader.java: private Charset m_charset = CharsetHelper.CP1252;
+  XerFile.java: tk.setDelimiter('\t');  and  if (record.isEmpty() || !"ERMHDR".equals(record.get(0))) throw new MPXJException(MPXJException.INVALID_FILE);
+  XerFile.java: RECORD_TYPE_MAP: "ERMHDR" HEADER, "%T" TABLE, "%F" FIELDS, "%R" DATA, "" DATA with the comment "Multiline data", "%E" END
+  XerFile.java: processHeader: m_defaultCurrencyName = record.size() > 8 ? record.get(8) : "USD";   (index 8 of the record counts the ERMHDR token as index 0; this agrees with xer-reader's index 7)
+  XerFile.java: processData: "We have more fields than field names, stop processing"   (MPXJ silently ignores surplus fields; xerlane does not)
+  XerFile.java: dates "yyyy-MM-dd", "yyyy-MM-dd HH:mm" or "yyyy-MM-dd HH:mm:ss" are read by parseCanonicalDate
+  XerFile.java: numbers: the decimal symbol comes from the CURRTYPE row of the default currency (decimal_symbol, digit_group_symbol)
+  XerFile.java: unescapeQuotes: replaces a doubled quote with one quote in string fields
+  XerFile.java: the type of a field is looked up by the field NAME only (FIELD_TYPE_MAP, e.g. target_start_date DATE, task_id INTEGER, lag_hr_cnt DURATION, target_cost CURRENCY); a file carries no type information
+  RelationTypeHelper.java: XER_TYPE_MAP: PR_FS finish to start, PR_FF finish to finish, PR_SS start to start, PR_SF start to finish
+  RelationTypeHelper.java: comment "We have examples from XER files where the relation type is in the form PR_FF1, PR_FF2 and so on"
+  NotesHelper.java: the text has the pattern of two 0x7F bytes replaced by a newline, and BOM and NUL characters removed (in notes, two 0x7F bytes stand for a line break)

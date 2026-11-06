@@ -1,0 +1,208 @@
+Excerpt of the Oracle Primavera P6 EPPM "XER Import/Export Data Map Guide (Project)", Version 23, April 2023
+URL: https://docs.oracle.com/cd/F74771_01/English/Mapping_and_Schema/xer_import_export_data_map_project/xer_import_export_data_map_project.pdf
+Read 2026-11-06. Only the field-name lists of the seven tables xerlane models are kept here, copied as the PDF text extractor printed them
+(the extractor interleaves the two columns of the PDF, so a field list and its UI-name list appear in separate blocks).
+The full guide is Oracle's copyright and is not redistributed; fetch it from the URL above. SHA-256 of the file read: 88d0bb845721567b2701b5bd7382250c3be1cd33324762eba9859cfb5fffacc2
+Cross-check: Version 21 of the same guide, https://docs.oracle.com/cd/F37128_01/English/Mapping_and_Schema/xer_import_export_data_map_project/xer_import_export_data_map_project.pdf
+(SHA-256 7bfa0abcf0da1fe6e147df260259ede55bfb0be237c142d7fb7e5308eae608a8), was also read. A word-level comparison of the CALENDAR, PROJECT, PROJWBS, RSRC and TASK sections found no column name in
+version 21 that version 23 lacks. The TASKPRED and TASKRSRC sections of version 21 were not compared by script.
+
+CALENDAR - (Calendars)
+P6 EPPM Field
+base_clndr_id clndr_data clndr_id clndr_name
+
+P6 EPPM Column Name
+Parent Calendar Data Unique ID Calendar Name
+
+8
+
+P6 EPPM Field
+clndr_type day_hr_cnt default_flag last_chng_date month_hr_cnt proj_id rsrc_private week_hr_cnt year_hr_cnt
+
+About XER Import/Export Data Map Guide (Project)
+P6 EPPM Column Name
+Calendar Type Work Hours Per Day Default Date Last Changed Work Hours Per Month Project Personal Calendar (P6 EPPM only) Work Hours Per Week Work Hours Per Year
+
+PROJECT - (Projects)
+P6 EPPM Field
+acct_id act_pct_link_flag act_this_per_link_flag
+add_act_remain_flag add_by_name add_date allow_complete_flag allow_neg_act_flag apply_actuals_date base_type_id batch_sum_flag checkout_date checkout_flag
+
+P6 EPPM Column Name
+Default Cost Account Link Percent Complete With Actual Link actual to date and actual this period units and costs Add Actual To Remain Added By Date Added Can resources mark activities completed Allow Negative Actual Units Last Apply Actuals Date Baseline Type Enable Summarization Date Checked Out Project Check-out Status
+
+16
+
+P6 EPPM Field
+checkout_user_id chng_eff_cmp_pct_flag
+clndr_id control_updates_flag cost_qty_recalc_flag cr_external_key critical_drtn_hr_cnt critical_path_type def_complete_pct_type def_cost_per_qty def_duration_type def_qty_type def_rate_type def_rollup_dates_flag def_task_type fcst_start_date fintmpl_id fy_start_month_num guid hist_interval hist_level intg_proj_type last_baseline_update_date
+
+About XER Import/Export Data Map Guide (Project)
+P6 EPPM Column Name
+Checked Out By Resources Edit Percent Complete (P6 Professional only) Default Calendar Status Update Control Cost Qty Recalc Flag Content Repository External UUID Critical activities have float less than or equal to critical_path_type Default Percent Complete Type Default Price / Unit Default Duration Type Default Price Time Units Rate Type Drive Activity Dates Default Default Activity Type Project Forecast Start Financial Period Calendar ID Fiscal Year Begins Global Unique ID History Interval History Level Integrated Project (P6 Professional only) Last Update Date
+
+17
+
+XER Import/Export Data Map Guide (Project)
+
+P6 EPPM Field
+last_checksum last_fin_dates_id last_level_date last_recalc_date last_schedule_date last_tasksum_date location_id
+msp_managed_flag
+name_sep_char orig_proj_id plan_end_date plan_start_date priority_num proj_id proj_short_name proj_url project_flag px_enable_publication_flag px_last_update_date
+
+P6 EPPM Column Name
+Last Checksum
+Financial Period
+Last Leveled Date ( only)
+Last Recalc Date P6 EPPM
+Last Scheduled Date (P6 EPPM only)
+Last Summarized Date
+Project Location Note: P6 Professional exports all Locations defined in Enterprise Data, irrespective of whether the location is used in the projects being exported. P6 exports only the Locations assigned to the projects being exported, their activities, and their resources.
+MS Project Managed Flag (P6 Professional only)
+Code Separator
+Original Project
+Must Finish By
+Planned Start
+Project Leveling Priority
+Unique ID
+Project ID
+Project Web Site URL
+Project Flag
+Enable Publication ( only)
+Last time Publish Project was run on this project (P6 Professional only)
+
+18
+
+P6 EPPM Field
+px_priority rem_target_link_flag reset_planned_flag risk_level rsrc_multi_assign_flag rsrc_self_add_flag scd_end_date source_proj_id step_complete_flag
+strgy_priority_num sum_assign_level sum_base_proj_id sum_data_date sum_only_flag
+task_code_base task_code_prefix task_code_prefix_flag task_code_step ts_rsrc_vs_inact_actv_flag
+use_project_baseline_flag wbs_max_sum_level web_local_root_path
+
+About XER Import/Export Data Map Guide (Project)
+P6 EPPM Column Name
+Publication Priority (P6 EPPM only) Link Budget and At Completion Reset Original to Remaining Risk Level (P6 Professional only) Can assign resource multiple times to activity Can resources assign selves to activities Schedule Finish Source Project Physical Percent Complete uses Steps Completed Strategic Priority sum_assign_level Project Baseline Summarized Data Date (P6 Professional only) Contains Summarized Data Only (P6 Professional only) Activity ID Suffix Activity ID Prefix Activity ID based on selected activity Activity ID Increment Resource can view activities from an inactive project (P6 Professional only) use_project_baseline_flag WBS Max Summarization Level Web Site Root Directory
+
+19
+
+XER Import/Export Data Map Guide (Project)
+
+PROJWBS - (WBS)
+P6 EPPM Field
+ann_dscnt_rate_pct anticip_end_date anticip_start_date dscnt_period_type est_wt ev_compute_type ev_etc_compute_type ev_etc_user_value ev_user_pct guid
+
+About XER Import/Export Data Map Guide (Project)
+P6 EPPM Column Name
+Project Status Unique ID Threshold Parameter Detail To Monitor Tracking Layout WBS To Date From Date
+P6 EPPM Column Name
+Annual Discount Rate Anticipated Finish Anticipated Start Discount Application Period Est Weight (P6 Professional only) Earned Value Percent Complete Technique Earned Value Estimate-to-Complete Technique Earned Value Performance Factor Earned Value Percent Complete Global Unique ID
+23
+
+XER Import/Export Data Map Guide (Project)
+
+P6 EPPM Field
+indep_remain_total_cost indep_remain_work_qty obs_id orig_cost parent_wbs_id phase_id proj_id proj_node_flag seq_num status_code status_reviewer sum_data_flag tmpl_guid wbs_id wbs_name wbs_short_name
+
+P6 EPPM Column Name
+Independent ETC Total Cost Independent ETC Labor Units Responsible Manager Original Budget Parent WBS WBS Category Project Project Node Sort Order Project Status User Reviewing Status Contains Summary Data Methodology Global Unique ID Unique ID WBS Name WBS Code
+
+RSRC - (Resources)
+
+29
+
+XER Import/Export Data Map Guide (Project)
+
+P6 EPPM Field
+active_flag auto_compute_act_flag clndr_id cost_qty_type curr_id def_cost_qty_link_flag def_qty_per_hr email_addr employee_code guid location_id
+office_phone ot_factor ot_flag other_phone parent_rsrc_id role_id rsrc_id rsrc_name rsrc_notes rsrc_seq_num
+
+P6 EPPM Column Name
+Active Auto Compute Actuals Calendar Price Time Units Currency Name Calculate costs from units Default Units / Time Email Address Employee ID Global Unique ID Resource Location
+Note: P6 Professional does not import locations assigned to resources.
+Office Phone Overtime Factor Overtime Allowed Other Phone Parent Resource Primary Role Unique ID Resource Name Resource Notes Sort Order
+
+30
+
+rsrc_short_name rsrc_title_name rsrc_type shift_id timesheet_flag ts_approve_user_id unit_id user_id xfer_complete_day_cnt
+xfer_notstart_day_cnt
+
+About XER Import/Export Data Map Guide (Project)
+Resource ID Title Resource Type Shift Uses timesheets Timesheet Approval Manager Unit of Measure User Login Name Not-Started Activities View Window (P6 Professional only) Completed Activities View Window (P6 Professional only)
+
+TASK - (Activities)
+P6 EPPM Field
+act_end_date act_equip_qty act_start_date
+
+P6 EPPM Column Name
+Actual Finish Actual Nonlabor Units Actual Start
+
+36
+
+P6 EPPM Field
+act_this_per_equip_qty act_this_per_work_qty act_work_qty auto_compute_act_flag clndr_id complete_pct_type create_date create_user cstr_date cstr_date2 cstr_type cstr_type2 driving_path_flag duration_type early_end_date early_start_date est_wt expect_end_date external_early_start_date external_late_end_date float_path float_path_order free_float_hr_cnt
+
+About XER Import/Export Data Map Guide (Project)
+P6 EPPM Column Name
+Actual This Period Nonlabor Units Actual This Period Labor Units Actual Labor Units Auto Compute Actuals Calendar Percent Complete Type Added Date Added By Primary Constraint Date Secondary Constraint Date Primary Constraint Secondary Constraint Longest Path Duration Type Early Finish Early Start Est Weight (P6 Professional only) Expected Finish External Early Start External Late Finish Float Path Float Path Order Free Float
+
+37
+
+XER Import/Export Data Map Guide (Project)
+
+P6 EPPM Field
+guid late_end_date late_start_date location_id lock_plan_flag phys_complete_pct priority_type proj_id reend_date rem_late_end_date rem_late_start_date remain_drtn_hr_cnt remain_equip_qty remain_work_qty restart_date resume_date rev_fdbk_flag review_end_date review_type rsrc_id status_code suspend_date target_drtn_hr_cnt
+
+P6 EPPM Column Name
+Global Unique ID Late Finish Late Start Activity Location Lock Remaining
+Activity Leveling Priority Project Remaining Early Finish Remaining Late Finish Remaining Late Start Remaining Duration Remaining Nonlabor Units Remaining Labor Units Remaining Early Start Resume Date New Feedback Review Finish (P6 Professional only) Review Status (P6 Professional only) Primary Resource Activity Status Suspend Date Planned Duration (P6 EPPM) Original or Planned Duration (P6 Professional)
+
+38
+
+P6 EPPM Field
+target_end_date target_equip_qty
+target_start_date target_work_qty
+task_code task_id task_name task_type tmpl_guid total_float_hr_cnt update_date update_user wbs_id
+
+About XER Import/Export Data Map Guide (Project)
+P6 EPPM Column Name
+Planned Finish Planned Nonlabor Units (P6 EPPM) Budgeted or Planned Nonlabor Units (P6 Professional) Planned Start Planned Labor Units (P6 EPPM) Budgeted or Planned Labor Units (P6 Professional) Activity ID Unique ID Activity Name Activity Type Methodology Global Unique ID Total Float Last Modified Date Last Modified By WBS
+
+TASKPRED - (Activity Relationships)
+
+P6 EPPM Field
+comments lag_hr_cnt pred_proj_id pred_task_id pred_type proj_id task_id task_pred_id
+
+P6 EPPM Column Name
+Comments Lag Predecessor Project Predecessor Relationship Type Successor Project Successor Unique ID
+
+TASKRSRC - (Activity Resource Assignments)
+
+P6 EPPM Field
+acct_id act_end_date act_ot_cost act_ot_qty act_reg_cost act_reg_qty act_start_date act_this_per_cost act_this_per_qty actual_crv cost_per_qty cost_per_qty_source_type cost_qty_link_flag create_date
+
+P6 EPPM Column Name
+Cost Account Actual Finish Actual Overtime Cost Actual Overtime Units Actual Regular Cost Actual Regular Units Actual Start Actual This Period Cost Actual This Period Units Actual Units Profile Price / Unit Rate Source Calculate costs from units Assigned Date
+
+43
+
+XER Import/Export Data Map Guide (Project)
+
+P6 EPPM Field
+create_user curv_id guid ot_factor pend_act_ot_qty
+pend_act_reg_qty
+pend_complete_pct pend_remain_qty prior_ts_act_of_qty
+prior_ts_act_reg_qty
+proj_id rate_type reend_date relag_drtn_hr_cnt rem_late_end_date rem_late_start_date remain_cost remain_crv remain_qty remain_qty_per_hr restart_date
+
+P6 EPPM Column Name
+Assigned by Curve Global Unique ID Overtime Factor Pend Actual Overtime Units (P6 Professional only) Pend Actual Regular Units (P6 Professional only) Pend % Complete (P6 Professional only) Pend Remaining Units (P6 Professional only) Prior Timesheet Actual Overtime Units (P6 Professional only) Prior Timesheet Actual Regular Units (P6 Professional only) Project Rate Type Remaining Early Finish Remaining Lag Remaining Late Finish Remaining Late Start Remaining Early Cost Remaining Units Profile Remaining Early Units Remaining Units / Time Remaining Early Start
+
+44
+
+P6 EPPM Field
+role_id rollup_dates_flag rsrc_id rsrc_type skill_level target_cost target_crv target_end_date target_lag_drtn_hr_cnt target_qty target_qty_per_hr target_start_date task_id TASKRSRC.TASK|wbs_id taskrsrc_id ts_pend_act_end_flag
+
+About XER Import/Export Data Map Guide (Project)
+P6 EPPM Column Name
+Role Drive Activity Dates Resource ID Name Resource Type Proficiency Budgeted/Planned Cost Planned Units Profile Planned Finish Original Lag Budgeted/Planned Units Budgeted/Planned Units / Time Planned Start Activity Name EPS/WBS Unique ID Pending Actual End Date Flag
+

@@ -1,0 +1,81 @@
+Excerpts of Oracle documentation, read 2026-11-06. Short quotations kept for the facts xerlane relies on; the full documents are Oracle's copyright, fetch them from the URLs.
+
+== 1. Oracle Primavera P6 Professional Importing and Exporting Guide, Version 21, April 2021
+URL: https://docs.oracle.com/cd/F37128_01/English/admin/p6_pro_importing_exporting/p6_pro_importing_exporting.pdf
+SHA-256 of the file read: eaea17f0e1b9c6ec469e0d14eedbedfe1b50eb1da8102bbc9b4aadf82ef10208
+
+file formats:
+
+     The Oracle proprietary format (XER) supports all project, resource, and role information
+         developed using the P6 Professional or P6 EPPM suite of project management tools.
+         The Primavera PM XER file format enables you to export data between PM release 5.0
+         and more recent versions for use within P6 Professional. The Contractor XER format is
+         supported to import data from Contractor 4.0 and subsequent versions into P6
+         Professional, as well as export data to Contractor 5.0 or 6.1.
+...
+Differences Between XML and XER Export Formats
+
+The following table compares the features and benefits of both formats for exporting project
+data. An X represents that a particular format is better suited for that functionality.
+
+Functionality                                                 XML  XER
+
+Data formats                                                  X
+XER is proprietary.
+XML is an industry-standard format.
+
+Multiple projects                                             X    X
+
+XER supports exporting multiple projects at once to a single
+
+XER file.
+
+XML supports exporting multiple projects at once to a single
+XML file.
+
+Baseline Export                                               X
+
+XER does not support the export of baselines.
+
+...
+
+Notes
+     If you export multiple projects in a single XER file, the interproject relationships between
+         activities in the projects are preserved.
+
+== 2. Oracle Primavera P6 EPPM Data Dictionary, Version 26, January 2026
+URL: https://docs.oracle.com/cd/G48897_01/English/User_Guides/p6_eppm_data_dictionary/p6_eppm_data_dictionary.pdf
+SHA-256 of the file read: 2a3dcae77d958f8dce6b9c87623541d995527d071db61791642a4e816b485521
+(Note: the URL path says G48897_01; the PDF cover page reads Version 26, January 2026.)
+
+Relationship Type
+    The type of relationship between two activities.
+    Valid values are:
+    Finish to Start: The successor activity cannot start until its predecessor finishes.
+    Finish to Finish: The successor activity cannot finish until its predecessor finishes.
+    Start to Start: The successor activity cannot start until its predecessor starts.
+    Start to Finish: The successor activity cannot finish until its predecessor starts.
+...
+Lag
+    The amount of time the predecessor activity was delayed, affecting the ability of its
+    successor activity to start or finish. Lag can be positive (indicating a delay) or negative
+    (indicating that the successor can begin a set time before the predecessor completes).
+    This value is specified by the project manager and is used by the project scheduler when
+    scheduling activities.
+...
+Total Float
+    The amount of time the activity can be delayed before risking a delay to the project finish
+    date.
+    A float of zero hours indicates that the activity cannot be delayed at all and a negative float
+    indicates that the project is already behind schedule. In a complex schedule, negative total
+    float on some activities might not cause a delay to the project finish date.
+...
+Free Float
+    The amount of time the activity can be delayed before delaying the start date of any
+    successor activity.
+
+...
+Activity ID
+    The unique identifier of the activity.
+    In order to identify and track activities, P6 assigns each activity a unique Activity ID that is
+    the result of joining the Activity ID Prefix with the Activity ID Suffix and then adding an
