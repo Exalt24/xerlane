@@ -8,7 +8,7 @@ Load Primavera XER schedules into PostgreSQL per client, set aside the rows that
 
 *A real run on an invented schedule (transcript: [docs/demo-transcript.txt](docs/demo-transcript.txt)). Load, reconcile passing, three planted defects set aside with their reasons, then one cent of damage in the database found by reconcile.*
 
-**788 tests, 878 of 878 mutants killed on the XER side and 412 of 412 on the APS side, a 6 MB file of 65,686 rows loaded in 3.1 s** (measured 2026-11-06, numbers and commands below).
+**788 tests, 879 of 879 mutants killed on the XER side and 412 of 412 on the APS side, a 6 MB file of 65,686 rows loaded in 3.1 s** (measured 2026-11-06, numbers and commands below).
 
 ## What it is and why
 
@@ -89,7 +89,7 @@ All numbers are from my runs on 2026-11-06 (Windows 11, Python 3.13, PostgreSQL 
 | What | Result | How |
 |---|---|---|
 | Tests | 788 passing: 558 for the XER side (7 of them Hypothesis property tests, 720 generated examples) and 230 for the APS connector | `python -m pytest` |
-| Mutants | 878 derived from the syntax tree of five modules, 878 killed, 0 survived | `python tests/mutation_check.py --module parse` (and validate, load, reconcile, db); per module totals in [docs/mutation-results.txt](docs/mutation-results.txt) |
+| Mutants | 879 derived from the syntax tree of five modules, 879 killed, 0 survived | `python tests/mutation_check.py --module parse` (and validate, load, reconcile, db); per module totals in [docs/mutation-results.txt](docs/mutation-results.txt) |
 | Mutants, APS connector | 412 derived from the syntax tree of `xerlane/aps.py`, 412 killed, 0 survived; run by hand, not in CI | `python tests/mutation_check_aps.py` |
 | Load, 6.1 MB | 65,686 rows (20,000 tasks, 34,965 links, 10,677 assignments) in 3.1 s (three runs: 3.0, 3.1, 3.3); reloading the same file 1.6 s | `python tools/make_sample_xer.py --seed 11 --tasks 20000` then `load` |
 | Parse alone, same file | 0.7 s | `parse_file` |
@@ -108,7 +108,7 @@ All numbers are from my runs on 2026-11-06 (Windows 11, Python 3.13, PostgreSQL 
 
 ```
 python tools/pg.py up        # the tests need the container; a missing database fails them, it never skips them
-python -m pytest             # 788 tests, TIME s in a fresh clone
+python -m pytest             # 788 tests, 281 s
 python tests/mutation_check.py --module parse    # one module at a time; --summary totals them
 ```
 

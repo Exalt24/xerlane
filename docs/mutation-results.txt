@@ -2,9 +2,9 @@ Mutation check results, 2026-11-06
 Command: python tests/mutation_check.py --module <name>  (name = parse, validate, load, reconcile, db), then --summary
 Each mutant changes one guard or value in a copy of the code; a mutant counts as killed when at least one test fails.
 
-db           66 mutants    66 killed    0 survived
+db           67 mutants    67 killed    0 survived
 load        163 mutants   163 killed    0 survived
 parse       258 mutants   258 killed    0 survived
 reconcile   170 mutants   170 killed    0 survived
 validate    221 mutants   221 killed    0 survived
-total       878 mutants   878 killed    0 survived
+total       879 mutants   879 killed    0 survived
