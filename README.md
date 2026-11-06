@@ -2,6 +2,8 @@
 
 Load Primavera XER schedules into PostgreSQL per client, set aside the rows that fail validation, and prove the data equals the file.
 
+[![CI](https://github.com/Exalt24/xerlane/actions/workflows/ci.yml/badge.svg)](https://github.com/Exalt24/xerlane/actions/workflows/ci.yml)
+
 ![A terminal run of xerlane on an invented schedule: a load, a reconcile that passes, three planted defects set aside with their reasons, then a one cent change that reconcile finds](docs/demo.gif)
 
 *A real run on an invented schedule (transcript: [docs/demo-transcript.txt](docs/demo-transcript.txt)). Load, reconcile passing, three planted defects set aside with their reasons, then one cent of damage in the database found by reconcile.*
