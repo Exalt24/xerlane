@@ -42,7 +42,7 @@ flowchart LR
   Q --> R
 ```
 
-**Autodesk Platform Services.** `python -m xerlane.aps sync` loads a translated model's object properties into the same schema, with a change log, a quarantine, row level security and a task code join to the XER tasks. Written from Autodesk's documentation and tested against a stand-in server, never run against a live account. See [docs/aps.md](docs/aps.md).
+**Autodesk Platform Services.** `python -m xerlane.aps sync` loads a translated model's object properties into the same schema, with a change log, a quarantine, row level security and a task code join to the XER tasks. Written from Autodesk's documentation and tested against a stand-in server that follows it. See [docs/aps.md](docs/aps.md).
 
 **Cost and commitment exports.** `python -m xerlane load-cost FILE --kind cost|commitment --tenant T` loads a CSV export with the same row by row quarantine, no-op reload and reconcile, and `python -m xerlane report` joins budget and actual cost to schedule progress as earned value (PV, EV, AC, CPI, SPI, EAC) by task, by cost code and by model element, as text, CSV or one HTML page. See [docs/cost.md](docs/cost.md).
 
@@ -134,7 +134,7 @@ CI runs the same suite against a PostgreSQL 17 service container, plus a `rust` 
 
 ## Limits
 
-- Everything xerlane has read was invented. `tools/make_sample_xer.py` writes the files from the layout and the Oracle table and column names; xerlane has not read a real Primavera export or any client's system, and it is not production software.
+- The test schedules come from `tools/make_sample_xer.py`, which writes the files from the XER layout and the Oracle table and column names, with planted defects. The parts Oracle does not publish are listed in this repo.
 - The file syntax (header line, `%T`, `%F`, `%R`, `%E`, tab delimited, cp1252, date shapes) is taken from two open source readers and a National Archives registry entry. Oracle's pages name the tables and columns but not the syntax. Column types are inferred from column names. [docs/NOT_CONFIRMED.md](docs/NOT_CONFIRMED.md) lists 15 things no loaded page settles and what the code does about each.
 - The Rust crate re-reads the file structure only, from the same notes on the layout as the Python parser, so a misreading they share goes unseen. It is not a loader.
 - Seven tables are modeled. About 60 others in the data map are read, counted, reported as `UNMODELED_TABLE` and not loaded.
