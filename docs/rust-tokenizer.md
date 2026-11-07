@@ -48,6 +48,8 @@ The run prints how many files reach each structural problem code, and a warning 
 
 The measured run is in [rust-tokenizer-run.txt](rust-tokenizer-run.txt): 461 files, 113,727 rows, no difference. It also holds two deliberate breakages. Changing the tab delimiter in the Rust line splitter to a space made 389 of the 461 files differ and made `cargo test` fail. Removing one character class (U+001C to U+001F counted as whitespace after `%E`, as Python does) made exactly one file differ, the hand written one for it. Both were reverted and the check was green again.
 
+The same check in CI on a Linux runner (GitHub Actions run 42334098465, job `rust`) read 459 files and 112,142 rows, the two fewer files being the two local ones, and found no difference.
+
 What the check does not show: the two readers agree on every file in this corpus, not on every file there could be, and both were written by the same person from the same notes about the layout, so a misreading of the layout that both share is not caught. `tests/test_xer_conformance.py` tests the comparison and the corpus without the Rust binary; CI runs the full check in the `rust` job.
 
 ## Timing
