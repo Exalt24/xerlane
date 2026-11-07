@@ -8,7 +8,7 @@ Load Primavera XER schedules, cost exports and model data into PostgreSQL per cl
 
 *A real run on an invented schedule (transcript: [docs/demo-transcript.txt](docs/demo-transcript.txt)). Load, reconcile passing, three planted defects set aside with their reasons, then one cent of damage in the database found by reconcile.*
 
-**912 tests, every mutant killed in eight modules (1,757 in all), 41 more tests on the web app, a 6 MB file of 65,686 rows loaded in 3.1 s** (measured 2026-11-07, numbers and commands below).
+**925 tests, every mutant killed in eight modules (1,757 in all), 41 more tests on the web app, a 6 MB file of 65,686 rows loaded in 3.1 s** (measured 2026-11-07, numbers and commands below).
 
 ## What it is and why
 
@@ -28,6 +28,7 @@ The table and column names come from Oracle's published XER data map. The file s
 | Quarantine | A row that fails a rule is stored in `quarantine` with its rule code, reason, line number and raw fields. The tasks, links and assignments that depended on it follow it in. | `quarantine` table |
 | Tenants | A `tenant_id` is part of every key and every table has forced row level security: no tenant setting means no rows. | `xerlane/schema.sql` |
 | Reconcile | Reads the file with its own small reader and the database with its own queries. Per table: file rows equal stored plus quarantined, every numeric column adds up to the same total, a seeded sample of rows matches field by field. Any difference is a named finding and exit code 1. | `xerlane/reconcile.py` |
+| Rust tokenizer | A second reader of the file structure in Rust, checked against the Python parser. It is not a loader. | `rust/xer-tokenizer/`, [docs/rust-tokenizer.md](docs/rust-tokenizer.md) |
 
 ```mermaid
 flowchart LR
@@ -98,27 +99,26 @@ All numbers are from my runs on 2026-11-06 (Windows 11, Python 3.13, PostgreSQL 
 
 | What | Result | How |
 |---|---|---|
-| Tests | 912 passing in Python (the XER side, the Autodesk connector, the cost loader, the earned value report, users and the command line, Hypothesis property tests among them) and 41 for the web app | `python -m pytest`, and `cd web && npm run build && npm test` |
+| Tests | 925 passing in Python (the XER side, the Autodesk connector, the cost loader, the earned value report, users and the command line, Hypothesis property tests among them) and 41 for the web app | `python -m pytest`, and `cd web && npm run build && npm test` |
 | Mutants | 1,345 derived from the syntax tree of seven modules, 1,345 killed, 0 survived | `python tests/mutation_check.py --module parse` (and validate, load, reconcile, db, cost, evm); per module totals in [docs/mutation-results.txt](docs/mutation-results.txt) |
 | Mutants, APS connector | 412 derived from the syntax tree of `xerlane/aps.py`, 412 killed, 0 survived; run by hand, not in CI | `python tests/mutation_check_aps.py` |
 | Load, 6.1 MB | 65,686 rows (20,000 tasks, 34,965 links, 10,677 assignments) in 3.1 s (three runs: 3.0, 3.1, 3.3); reloading the same file 1.6 s | `python tools/make_sample_xer.py --seed 11 --tasks 20000` then `load` |
 | Parse alone, same file | 0.7 s | `parse_file` |
+| Rust tokenizer, same 6 MB file | Same output as the Python parser on 461 files, red on two planted breakages; 37 ms fastest of 21 runs, where `parse_file` takes 629 ms and also hashes and types the fields | `python tools/xer_conformance.py`, `python tools/xer_bench.py` ([output](docs/rust-tokenizer-run.txt)) |
 | Reconcile, same file | 0.4 s | `reconcile` |
 
 ## What was hard
 
 - **A control for the checker.** A reconcile that says "match" proves nothing until it has been seen to say "differ". [tests/test_reconcile.py](tests/test_reconcile.py) damages the stored data on purpose (one row, one cent, one character, one minute, one hour of float, a quarantined row, 17 kinds) and requires reconcile to fail each time with the right check name, after first requiring it to pass.
 - **Isolation that can fail.** [tests/test_tenant.py](tests/test_tenant.py) first shows a tenant reading its own rows, then shows another tenant, and a connection with no tenant at all, reading none. A second test turns `FORCE` off and shows the table owner then reads everything, so the test above it can fail.
-- **Swapping two task codes between versions.** The unique key on (tenant, project, task code) rejected an update that swapped two codes, though the end state was valid. The key is now deferred to commit; [test_swapping_two_task_codes_between_versions_does_not_trip_the_unique_key](tests/test_load.py) pins it.
 - **The first mutation pass found lines no test pinned.** Of 848 mutants of the parser, rules, loader and reconcile, 90 survived: an id of 9223372036854775808 passed the digit check, two rules that both fire on one row were not shown to report only the first, a reload of a file that differs only in its header date was not shown to move the quarantine rows to the new file hash, the reported load time was never checked to be a time. Tests were added for each survivor and a few redundant lines were deleted; none of the mutants was removed.
-- **`init-db` raced itself.** The mutation check runs several workers, each with its own database, and two `init-db` calls at once failed on creating the roles and the schema. It now takes an advisory lock and treats an existing role as done; [test_init_db_run_by_several_processes_at_once_does_not_fail](tests/test_db.py) runs six at once on a fresh server state.
-- **A connection to a closed port hung past two minutes on Windows.** `connect_timeout=10` now bounds it; [test_tenant_is_required_and_the_database_must_be_reachable](tests/test_cli.py) pins it.
+- Three more: [docs/more-hard-parts.md](docs/more-hard-parts.md).
 
 ## Tests
 
 ```
 python tools/pg.py up        # the tests need the container; a missing database fails them, it never skips them
-python -m pytest             # 912 tests
+python -m pytest             # 925 tests
 python tests/mutation_check.py --module parse    # one module at a time; --summary totals them
 ```
 
@@ -130,12 +130,13 @@ Hypothesis properties, run on random schedules with random damage to the file: t
 
 The mutation check ([tests/mutation_check.py](tests/mutation_check.py)) flips or removes one guard at a time in a copy of the code (comparisons, `and` and `or`, a removed `not`, a negated condition, an `if` that ends in `raise` or `return` replaced by `pass`, a dropped call, a returned value turned into `None`, the rule codes emptied) and requires a failing test for each.
 
-CI runs the same suite against a PostgreSQL 17 service container.
+CI runs the same suite against a PostgreSQL 17 service container, plus a `rust` job (fmt, clippy, test, conformance).
 
 ## Limits
 
 - Everything xerlane has read was invented. `tools/make_sample_xer.py` writes the files from the layout and the Oracle table and column names; xerlane has not read a real Primavera export or any client's system, and it is not production software.
 - The file syntax (header line, `%T`, `%F`, `%R`, `%E`, tab delimited, cp1252, date shapes) is taken from two open source readers and a National Archives registry entry. Oracle's pages name the tables and columns but not the syntax. Column types are inferred from column names. [docs/NOT_CONFIRMED.md](docs/NOT_CONFIRMED.md) lists 15 things no loaded page settles and what the code does about each.
+- The Rust crate re-reads the file structure only, from the same notes on the layout as the Python parser, so a misreading they share goes unseen. It is not a loader.
 - Seven tables are modeled. About 60 others in the data map are read, counted, reported as `UNMODELED_TABLE` and not loaded.
 - The cost and commitment layouts are my own (docs/cost.md says why); no vendor's export was read, and percent complete and planned value use the simplest methods (duration based, straight line on the calendar). The Autodesk connector reads object properties of a translated model and nothing else, and it has only talked to a stand-in server I wrote from Autodesk's documentation, never to Autodesk.
 - A relationship between two projects is quarantined by name, not loaded. A project is identified by (tenant, `proj_id`).
@@ -145,7 +146,7 @@ CI runs the same suite against a PostgreSQL 17 service container.
 
 ## Stack
 
-Python 3.13, PostgreSQL 17, psycopg 3, pytest, Hypothesis, Docker; the web app adds TypeScript, Nuxt (Vue), Nitro, pg and Vitest.
+Python 3.13, PostgreSQL 17, psycopg 3, pytest, Hypothesis, Docker; a small Rust crate for the file tokenizer; the web app adds TypeScript, Nuxt (Vue), Nitro, pg and Vitest.
 
 ## License
 

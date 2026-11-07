@@ -46,6 +46,26 @@ jobs:
       - name: Test
         run: python -m pytest -q
 
+  rust:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.13"
+      - name: Install the pinned Rust toolchain
+        run: rustup toolchain install 1.99.1 --profile minimal --component clippy --component rustfmt
+      - name: Format, lint and test the tokenizer
+        working-directory: rust/xer-tokenizer
+        run: |
+          cargo fmt --check
+          cargo clippy --all-targets -- -D warnings
+          cargo test
+          cargo build --release
+      - name: Conformance, Rust tokenizer against the Python parser
+        run: python tools/xer_conformance.py --rust-bin rust/xer-tokenizer/target/release/xer-tokenizer
+
   web:
     runs-on: ubuntu-latest
     timeout-minutes: 15
