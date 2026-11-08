@@ -1,6 +1,6 @@
 # xerlane
 
-Load Primavera XER schedules, cost exports and model data into PostgreSQL per client, set aside the rows that fail validation, prove the data equals the file, and show each client its own earned value behind a login.
+Loads Primavera XER schedules, cost exports and model data into PostgreSQL per client, quarantines bad rows, proves the data equals the file and shows earned value per client.
 
 [![CI](https://github.com/Exalt24/xerlane/actions/workflows/ci.yml/badge.svg)](https://github.com/Exalt24/xerlane/actions/workflows/ci.yml)
 
@@ -8,13 +8,13 @@ Load Primavera XER schedules, cost exports and model data into PostgreSQL per cl
 
 *A real run on an invented schedule (transcript: [docs/demo-transcript.txt](docs/demo-transcript.txt)). Load, reconcile passing, three planted defects set aside with their reasons, then one cent of damage in the database found by reconcile.*
 
-**925 tests, every mutant killed in eight modules (1,757 in all), 41 more tests on the web app, a 6 MB file of 65,686 rows loaded in 3.1 s** (measured 2026-11-07, numbers and commands below).
+**925 tests. Every mutant killed in eight modules (1,757 in all). 41 more tests on the web app. A 6 MB file of 65,686 rows loaded in 3.1 s.** Measured 2026-11-07, numbers and commands below.
 
 ## What it is and why
 
-A schedule export is one text file holding dozens of linked tables. Loading it into a database well means not trusting the file and not trusting the loader: a predecessor can point at a task that is not there, two relationships can chase each other in a loop, a row can lose a field, and a loader that quietly skips such rows reports a clean load of a wrong schedule.
+A schedule export is one text file holding dozens of linked tables. Loading it into a database well means not trusting the file and not trusting the loader. A predecessor can point at a task that is not there. Two relationships can chase each other in a loop. A row can lose a field. A loader that quietly skips such rows reports a clean load of a wrong schedule.
 
-xerlane reads an XER file with a streaming parser that names every line it does not understand, validates it, loads what passes into typed PostgreSQL tables with real keys, and writes every row that fails into a quarantine table with the reason and the original fields. A separate reader then re-reads the file and the database and checks that nothing went missing or changed. Each client's rows are fenced off with forced row level security.
+xerlane reads an XER file with a streaming parser that names every line it does not understand. It validates the file and loads what passes into typed PostgreSQL tables with real keys. Every row that fails goes into a quarantine table with the reason and the original fields. A separate reader then re-reads the file and the database and checks that nothing went missing or changed. Each client's rows are fenced off with forced row level security.
 
 The table and column names come from Oracle's published XER data map. The file syntax comes from open source readers, because no Oracle page I could load describes it. Both are quoted, dated and linked in [docs/vendor-contract/SOURCE.md](docs/vendor-contract/SOURCE.md), and what no page settles is listed in [docs/NOT_CONFIRMED.md](docs/NOT_CONFIRMED.md).
 
@@ -42,11 +42,11 @@ flowchart LR
   Q --> R
 ```
 
-**Autodesk Platform Services.** `python -m xerlane.aps sync` loads a translated model's object properties into the same schema, with a change log, a quarantine, row level security and a task code join to the XER tasks. Written from Autodesk's documentation and tested against a stand-in server that follows it. See [docs/aps.md](docs/aps.md).
+**Autodesk Platform Services.** `python -m xerlane.aps sync` loads a translated model's object properties into the same schema. It keeps a change log and a quarantine, applies row level security and joins to the XER tasks by task code. Written from Autodesk's documentation and tested against a stand-in server that follows it. See [docs/aps.md](docs/aps.md).
 
-**Cost and commitment exports.** `python -m xerlane load-cost FILE --kind cost|commitment --tenant T` loads a CSV export with the same row by row quarantine, no-op reload and reconcile, and `python -m xerlane report` joins budget and actual cost to schedule progress as earned value (PV, EV, AC, CPI, SPI, EAC) by task, by cost code and by model element, as text, CSV or one HTML page. See [docs/cost.md](docs/cost.md).
+**Cost and commitment exports.** `python -m xerlane load-cost FILE --kind cost|commitment --tenant T` loads a CSV export with the same row by row quarantine, no-op reload and reconcile. The report command (`python -m xerlane report`) joins budget and actual cost to schedule progress as earned value (PV, EV, AC, CPI, SPI, EAC). It reports by task, by cost code and by model element, as text, CSV or one HTML page. See [docs/cost.md](docs/cost.md).
 
-**Web app.** `web/` is a Nuxt and TypeScript app where a client's staff sign in and see only their own projects, earned value and set aside rows, and administrators add and disable users. The separation between clients is the database's forced row level security, not a filter in the code. See [docs/web.md](docs/web.md).
+**Web app.** `web/` is a Nuxt and TypeScript app. A client's staff sign in and see only their own projects, earned value and set aside rows. Administrators add and disable users. The separation between clients is the database's forced row level security, not a filter in the code. See [docs/web.md](docs/web.md).
 
 ![The web app's project page for one client: budget, planned, earned and actual cost, the cost and schedule indexes, and the tasks furthest over cost](docs/web-report.png)
 
@@ -79,19 +79,7 @@ result     RECONCILED: counts, sums and sampled rows match the file
 
 Plant defects with `--defect cycle --defect bad_number` (`--list-defects` shows all 15) and load the file again to see them set aside.
 
-| Command | What it does | Exit code |
-|---|---|---|
-| `init-db` | Creates the two roles, the schema and the tables. Safe to run twice. | 0 |
-| `load FILE --tenant T` | Parse, validate, load. | 0 clean, 1 loaded with quarantined rows, 2 file rejected or a project failed |
-| `validate FILE [--tenant T]` | Check the file; with a tenant also the stored data of its projects. | 0 clean, 1 errors found |
-| `reconcile FILE --tenant T` | Prove the stored data equals the file. | 0 matches, 1 differences |
-| `diff FILE --tenant T` | What loading the file would change, without writing. | 0 nothing, 1 changes |
-| `load-cost FILE --kind K --tenant T` | Load a cost or commitment CSV (`K` is `cost` or `commitment`). | 0 clean, 1 loaded with set aside rows, 2 rejected or failed |
-| `reconcile-cost FILE --kind K --tenant T` | Prove the stored rows equal the file. | 0 matches, 1 differences |
-| `report --tenant T --proj-id N` | Earned value for one project (`--as-of`, `--format` text, csv or html, `--out`). | 0 |
-| `add-user --tenant T --email E --role R` | Create a web app user, `R` is viewer or admin (password from `XERLANE_NEW_PASSWORD` or a prompt). | 0, 2 on a refused user |
-
-The loader refuses to run as a superuser or any role that bypasses row level security, because that role would see every tenant.
+Every command, its arguments and its exit codes are in [docs/commands.md](docs/commands.md). The commands are `init-db`, `load`, `validate`, `reconcile`, `diff`, `load-cost`, `reconcile-cost`, `report` and `add-user`. The loader refuses to run as a superuser or any role that bypasses row level security, because that role would see every tenant.
 
 ## Measured results
 
@@ -109,9 +97,9 @@ All numbers are from my runs on 2026-11-06 (Windows 11, Python 3.13, PostgreSQL 
 
 ## What was hard
 
-- **A control for the checker.** A reconcile that says "match" proves nothing until it has been seen to say "differ". [tests/test_reconcile.py](tests/test_reconcile.py) damages the stored data on purpose (one row, one cent, one character, one minute, one hour of float, a quarantined row, 17 kinds) and requires reconcile to fail each time with the right check name, after first requiring it to pass.
-- **Isolation that can fail.** [tests/test_tenant.py](tests/test_tenant.py) first shows a tenant reading its own rows, then shows another tenant, and a connection with no tenant at all, reading none. A second test turns `FORCE` off and shows the table owner then reads everything, so the test above it can fail.
-- **The first mutation pass found lines no test pinned.** Of 848 mutants of the parser, rules, loader and reconcile, 90 survived: an id of 9223372036854775808 passed the digit check, two rules that both fire on one row were not shown to report only the first, a reload of a file that differs only in its header date was not shown to move the quarantine rows to the new file hash, the reported load time was never checked to be a time. Tests were added for each survivor and a few redundant lines were deleted; none of the mutants was removed.
+- **A control for the checker.** A reconcile that says "match" proves nothing until it has been seen to say "differ". [tests/test_reconcile.py](tests/test_reconcile.py) damages the stored data on purpose (one row, one cent, one character, one minute, one hour of float, a quarantined row, 17 kinds). It requires reconcile to fail each time with the right check name, after first requiring it to pass.
+- **Isolation that can fail.** [tests/test_tenant.py](tests/test_tenant.py) first shows a tenant reading its own rows. Then it shows another tenant, and a connection with no tenant at all, reading none. A second test turns `FORCE` off and shows the table owner then reads everything, so the test above it can fail.
+- **The first mutation pass found lines no test pinned.** Of 848 mutants of the parser, rules, loader and reconcile, 90 survived. An id of 9223372036854775808 passed the digit check. Two rules that both fire on one row were not shown to report only the first. A reload of a file that differs only in its header date was not shown to move the quarantine rows to the new file hash. The reported load time was never checked to be a time. Tests were added for each survivor and a few redundant lines were deleted. None of the mutants was removed.
 - Three more: [docs/more-hard-parts.md](docs/more-hard-parts.md).
 
 ## Tests
@@ -124,29 +112,25 @@ python tests/mutation_check.py --module parse    # one module at a time; --summa
 
 Connector: `python -m pytest tests/test_aps_*.py; python tests/mutation_check_aps.py` (the mutation check is run by hand, not in CI). Web app: `cd web && npm run build && npm test && npm run typecheck`, run by CI in its own job. Query plans: [docs/query-tuning.md](docs/query-tuning.md).
 
-What they cover: the parser (every problem code, both line endings, encodings, typed values accepted and refused), the rules (hand built schedules and every planted defect kind, generated), the loader on a real PostgreSQL (idempotence, change report, rollback, quarantine, several projects), tenants, reconcile and its damage control, the command line as a real process, and the generator.
-
-Hypothesis properties, run on random schedules with random damage to the file: the parser never raises and a rendered file parses back to exactly the rendered rows; every row of the file is stored or quarantined and reconcile agrees; loading the same file twice changes nothing; loading version 1 then version 2 leaves the same project data as loading version 2 alone; a planted defect is always reported under its code and a file-level defect always rejects the file and writes nothing; two tenants with identical ids, including ids made of quotes and percent signs, never see each other.
-
-The mutation check ([tests/mutation_check.py](tests/mutation_check.py)) flips or removes one guard at a time in a copy of the code (comparisons, `and` and `or`, a removed `not`, a negated condition, an `if` that ends in `raise` or `return` replaced by `pass`, a dropped call, a returned value turned into `None`, the rule codes emptied) and requires a failing test for each.
+What the suites cover, the Hypothesis properties and how the mutation check flips guards are in [docs/tests.md](docs/tests.md). The mutation check requires a failing test for every change it makes.
 
 CI runs the same suite against a PostgreSQL 17 service container, plus a `rust` job (fmt, clippy, test, conformance).
 
 ## Limits
 
 - The test schedules come from `tools/make_sample_xer.py`, which writes the files from the XER layout and the Oracle table and column names, with planted defects. The parts Oracle does not publish are listed in this repo.
-- The file syntax (header line, `%T`, `%F`, `%R`, `%E`, tab delimited, cp1252, date shapes) is taken from two open source readers and a National Archives registry entry. Oracle's pages name the tables and columns but not the syntax. Column types are inferred from column names. [docs/NOT_CONFIRMED.md](docs/NOT_CONFIRMED.md) lists 15 things no loaded page settles and what the code does about each.
-- The Rust crate re-reads the file structure only, from the same notes on the layout as the Python parser, so a misreading they share goes unseen. It is not a loader.
+- The file syntax comes from two open source readers and a National Archives registry entry. It covers the header line, `%T`, `%F`, `%R`, `%E`, tab delimited, cp1252 and date shapes. Oracle's pages name the tables and columns but not the syntax. Column types are inferred from column names. [docs/NOT_CONFIRMED.md](docs/NOT_CONFIRMED.md) lists 15 things no loaded page settles and what the code does about each.
+- The Rust crate re-reads the file structure only, from the same notes on the layout as the Python parser. A misreading they share goes unseen. It is not a loader.
 - Seven tables are modeled. About 60 others in the data map are read, counted, reported as `UNMODELED_TABLE` and not loaded.
-- The cost and commitment layouts are my own (docs/cost.md says why); no vendor's export was read, and percent complete and planned value use the simplest methods (duration based, straight line on the calendar). The Autodesk connector reads object properties of a translated model and nothing else, and it has only talked to a stand-in server I wrote from Autodesk's documentation, never to Autodesk.
+- The cost and commitment layouts are my own (docs/cost.md says why). No vendor's export was read. Percent complete and planned value use the simplest methods (duration based, straight line on the calendar). The Autodesk connector reads object properties of a translated model and nothing else. It has only talked to a stand-in server I wrote from Autodesk's documentation, never to Autodesk.
 - A relationship between two projects is quarantined by name, not loaded. A project is identified by (tenant, `proj_id`).
 - Dates are stored without a time zone, hours as plain numbers, nothing converted.
-- The command line takes whatever tenant id the caller passes to `--tenant`; row level security keeps tenants apart, and which person may use which tenant id is decided by the web app's login (docs/web.md) and nowhere else. The web app has run on generated data on one machine, without TLS, a password reset or two factor sign in.
-- Reconcile checks every count and every sum, and a seeded sample of 300 rows per table field by field (`--sample` changes it).
+- The command line takes whatever tenant id the caller passes to `--tenant`. Row level security keeps tenants apart. Which person may use which tenant id is decided by the web app's login (docs/web.md) and nowhere else. The web app has run on generated data on one machine, without TLS, a password reset or two factor sign in.
+- Reconcile checks every count and every sum. It also checks a seeded sample of 300 rows per table field by field (`--sample` changes it).
 
 ## Stack
 
-Python 3.13, PostgreSQL 17, psycopg 3, pytest, Hypothesis, Docker; a small Rust crate for the file tokenizer; the web app adds TypeScript, Nuxt (Vue), Nitro, pg and Vitest.
+Python 3.13, PostgreSQL 17, psycopg 3, pytest, Hypothesis and Docker. A small Rust crate does the file tokenizer. The web app adds TypeScript, Nuxt (Vue), Nitro, pg and Vitest.
 
 ## License
 

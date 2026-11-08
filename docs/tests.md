@@ -1,0 +1,7 @@
+# What the tests cover
+
+The parser tests cover every problem code, both line endings, encodings, and typed values accepted and refused. The rules tests use hand built schedules and every planted defect kind, generated. The loader tests run on a real PostgreSQL and cover idempotence, change report, rollback, quarantine and several projects. Other tests cover tenants, reconcile and its damage control, the command line as a real process, and the generator.
+
+Hypothesis properties run on random schedules with random damage to the file. The parser never raises, and a rendered file parses back to exactly the rendered rows. Every row of the file is stored or quarantined, and reconcile agrees. Loading the same file twice changes nothing. Loading version 1 then version 2 leaves the same project data as loading version 2 alone. A planted defect is always reported under its code. A file-level defect always rejects the file and writes nothing. Two tenants with identical ids, including ids made of quotes and percent signs, never see each other.
+
+The mutation check ([tests/mutation_check.py](../tests/mutation_check.py)) flips or removes one guard at a time in a copy of the code. The mutations are comparisons, `and` and `or`, a removed `not`, a negated condition, an `if` that ends in `raise` or `return` replaced by `pass`, a dropped call, a returned value turned into `None` and the rule codes emptied. Each one must make a test fail.
