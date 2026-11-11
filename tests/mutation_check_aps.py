@@ -283,7 +283,7 @@ def summary() -> int:
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--part", help="i/n: run the i-th of n slices of the mutants")
-    ap.add_argument("--jobs", type=int, default=4)
+    ap.add_argument("--jobs", type=int, default=max(2, (os.cpu_count() or 4) // 2))
     ap.add_argument("--list", action="store_true")
     ap.add_argument("--summary", action="store_true")
     ap.add_argument("--ids", help="run only these mutant ids (comma separated) and merge the outcome into the recorded results")
