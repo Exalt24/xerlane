@@ -37,3 +37,7 @@ updates:
     groups:
       minor-and-patch:
         update-types: [minor, patch]
+    ignore:
+      # TypeScript 7 removes the typescript/lib/tsc export that vue-tsc loads, so the web job fails on it (CI run 45176492212); revisit when vue-tsc supports it.
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
